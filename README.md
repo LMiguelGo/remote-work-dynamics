@@ -38,14 +38,11 @@ remote-work-dynamics/
 │   ├── notebooks/             # Análisis exploratorio de datos de productividad [Yulieth]
 │   ├── pipelines/             # Agregación por bloques de 15 min e integración Jira [Yulieth]
 │   └── models/                # Lógica de cálculo de tiempo de foco continuo [Yulieth]
-├── docs/                      # Documentación del Proyecto Académico
-│   ├── architecture/          # Diagramas de red, secuencia y componentes [Briyith]
-│   ├── ethics-privacy/        # Evaluación de impacto e indicadores no invasivos [Angela]
-│   ├── management/            # Sprints, actas de reunión y backlog [Karol]
-│   └── requirements/          # Historias de usuario y especificaciones [Karol / Briyith]
-└── deploy/                    # Infraestructura y Despliegue
-    ├── docker/                # Dockerfiles y docker-compose [Briyith / Miguel]
-    └── scripts/               # Scripts de automatización e instalación [Briyith]
+└── docs/                      # Documentación del Proyecto Académico
+    ├── architecture/          # Diagramas de red, secuencia y componentes [Briyith]
+    ├── ethics-privacy/        # Evaluación de impacto e indicadores no invasivos [Angela]
+    ├── management/            # Sprints, actas de reunión y backlog [Karol]
+    └── requirements/          # Historias de usuario y especificaciones [Karol / Briyith]
 ```
 
 ---
@@ -63,7 +60,7 @@ cd remote-work-dynamics
 
 ## 🔄 Flujo de Trabajo en Git (Git Flow)
 
-> ⚠️ **REGLA DE ORO:** Está strictly prohibido hacer `git push` directamente a la rama `main`. Toda contribución debe realizarse mediante ramas individuales (`feature/`) e integrarse a través de un **Pull Request (PR)**.
+> ⚠️ **REGLA DE ORO:** Está estrictamente prohibido hacer `git push` directamente a la rama `main`. Toda contribución debe realizarse mediante ramas individuales (`feature/`) e integrarse a través de un **Pull Request (PR)**.
 
 ### Paso a Paso para Desarrollar una Tarea:
 
