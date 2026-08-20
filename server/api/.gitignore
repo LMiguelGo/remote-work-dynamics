@@ -1,0 +1,18 @@
+# Base de datos local
+datos/
+*.db
+*.db-wal
+*.db-shm
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Pruebas
+.pytest_cache/
+.benchmarks/
+
+# Configuracion local
+.env
