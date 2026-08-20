@@ -97,7 +97,7 @@ cd remote-work-dynamics
 
 5. **Crear el Pull Request (PR) en GitHub:**
    * Ve a la página del repositorio en GitHub.
-   * Haz clic en el botón amarillo **"Compare & pull request"**.
+   * Haz clic en el botón **"Compare & pull request"**.
    * Asigna a **Karol** o **Briyith** como revisoras (Reviewers).
    * Describe brevemente los cambios o funcionalidades agregadas.
    * Una vez aprobado el PR, presiona **"Merge pull request"** y elimina la rama remota.
