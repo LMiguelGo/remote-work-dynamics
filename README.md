@@ -11,13 +11,13 @@ Para garantizar un desarrollo ordenado y libre de conflictos en Git (merge confl
 
 | Integrante | Rol / Especialidad | Módulo Principal | Responsabilidades Técnicas |
 | :--- | :--- | :--- | :--- |
-| **Karol** | Líder / Scrum Master | `docs/management/`<br>`.github/` | Gestión de backlog, revisión/aprobación de Pull Requests (PRs), plantillas de issues y seguimiento de sprints. |
-| **Briyith** | Arquitecta Telemática | `docs/architecture/`<br>`deploy/` | Diagramación de arquitectura telemática, flujos de red, Docker Compose y topología del sistema. |
-| **Layla** | Captura / Sensores | `apps/agent/`<br>`apps/edge-node/` | Agente de software en laptop (métricas no invasivas) y lectura del sensor ambiental BME280. |
-| **Miguel** | Comunicaciones / Edge / MQTT | `apps/edge-node/`<br>`server/broker/` | Transmisión de eventos, configuración del Broker MQTT (Mosquitto/EMQX) y lógica Edge. |
-| **Jose** | Backend / APIs | `server/api/`<br>`server/database/` | Desarrollo de API REST / WebSockets, persistencia en BD y controladores del servidor. |
-| **Yulieth** | Analítica de Datos | `analytics/` | Procesamiento en bloques de 15 min, cálculo de tiempo de foco e integración con Jira/Trello/Asana. |
-| **Angela** | UX / Dashboard / Ética | `apps/dashboard/`<br>`docs/ethics-privacy/` | Interfaz web para supervisor y empleado, y marco de privacidad (Privacy by Design). |
+| **Karol Tatiana Palechor** | Líder / Scrum Master | `docs/management/`<br>`.github/` | Gestión de backlog, revisión/aprobación de Pull Requests (PRs), plantillas de issues y seguimiento de sprints. |
+| **Briyith Vaneza Guacas** | Arquitecta Telemática | `docs/architecture/`<br>`deploy/` | Diagramación de arquitectura telemática, flujos de red, Docker Compose y topología del sistema. |
+| **Layla Vanessa Zúñiga** | Captura / Sensores | `apps/agent/`<br>`apps/edge-node/` | Agente de software en laptop (métricas no invasivas) y lectura del sensor ambiental BME280. |
+| **Luis Miguel Gomez** | Comunicaciones / Edge / MQTT | `apps/edge-node/`<br>`server/broker/` | Transmisión de eventos, configuración del Broker MQTT (Mosquitto/EMQX) y lógica Edge. |
+| **Jose Martin Gonzalez** | Backend / APIs | `server/api/`<br>`server/database/` | Desarrollo de API REST / WebSockets, persistencia en BD y controladores del servidor. |
+| **Yulieth Gabriela Jaramillo** | Analítica de Datos | `analytics/` | Procesamiento en bloques de 15 min, cálculo de tiempo de foco e integración con Jira/Trello/Asana. |
+| **Angela Isabel Becerra** | UX / Dashboard / Ética | `apps/dashboard/`<br>`docs/ethics-privacy/` | Interfaz web para supervisor y empleado, y marco de privacidad (Privacy by Design). |
 
 ---
 
@@ -33,9 +33,9 @@ remote-work-dynamics/
 │   └── edge-node/             # Firmware/Código para ESP32 + BME280 [Layla / Miguel]
 |
 ├── server/                    # Servidor Central
-│   ├── api/                   # API Backend REST & WebSockets [Jose]
+│   ├── api/                   # API Backend REST & WebSockets [Martin]
 │   ├── broker/                # Broker de mensajería MQTT [Miguel]
-│   └── database/              # Modelos, esquemas y scripts de BD [Jose / Yulieth]
+│   └── database/              # Modelos, esquemas y scripts de BD [Martin / Yulieth]
 |
 ├── analytics/                 # Motor de Inteligencia y Analítica
 │   ├── notebooks/             # Análisis exploratorio de datos de productividad [Yulieth]
