@@ -77,8 +77,8 @@ cd remote-work-dynamics
 2. **Crear tu rama de trabajo individual:**  
    Usa la convención de nombre `feature/tu_nombre-nombre_tarea`:
    ```bash
-   # Ejemplo para Jose:
-   git checkout -b feature/jose-api-autenticacion
+   # Ejemplo para Martin:
+   git checkout -b feature/martin-api-autenticacion
 
    # Ejemplo para Layla:
    git checkout -b feature/layla-bme280-driver
