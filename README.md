@@ -26,18 +26,22 @@ Para garantizar un desarrollo ordenado y libre de conflictos en Git (merge confl
 ```text
 remote-work-dynamics/
 ├── .github/                   # Plantillas de Issues/PRs y automatizaciones [Karol]
+|
 ├── apps/                      # Aplicaciones ejecutables
 │   ├── agent/                 # Captura de métricas en PC de empleado [Layla]
 │   ├── dashboard/             # Panel web visualizador UX/UI [Angela]
 │   └── edge-node/             # Firmware/Código para ESP32 + BME280 [Layla / Miguel]
+|
 ├── server/                    # Servidor Central
 │   ├── api/                   # API Backend REST & WebSockets [Jose]
 │   ├── broker/                # Broker de mensajería MQTT [Miguel]
 │   └── database/              # Modelos, esquemas y scripts de BD [Jose / Yulieth]
+|
 ├── analytics/                 # Motor de Inteligencia y Analítica
 │   ├── notebooks/             # Análisis exploratorio de datos de productividad [Yulieth]
 │   ├── pipelines/             # Agregación por bloques de 15 min e integración Jira [Yulieth]
 │   └── models/                # Lógica de cálculo de tiempo de foco continuo [Yulieth]
+|
 └── docs/                      # Documentación del Proyecto Académico
     ├── architecture/          # Diagramas de red, secuencia y componentes [Briyith]
     ├── ethics-privacy/        # Evaluación de impacto e indicadores no invasivos [Angela]
