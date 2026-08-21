@@ -16,7 +16,15 @@ BASE = {
     "seq": 1,
     "ts": "2026-08-19T09:00:00Z",
     "private_mode": False,
-    "metrics": {"temperatura_c": 24.1, "humedad_pct": 45.0, "presion_hpa": 1013.25},
+    "metrics": {
+        "temperatura_c": 24.1,
+        "humedad_pct": 45.0,
+        "presion_hpa": 1013.25,
+        "alerta_generada": False,
+        "notificacion_recomendacion_realizada": False,
+        "numero_de_notificacion_recomendacion_realizada": 0,
+        "%de_productividad": 82.5,
+    },
 }
 
 
@@ -102,11 +110,17 @@ def test_conteo_coincide_con_lo_enviado(cliente):
         ({**BASE, "seq": 0}, "seq menor que 1"),
         ({**BASE, "metrics": {}}, "metrics vacio"),
         ({**BASE, "metrics": {"lista": [1, 2, 3]}}, "metric no escalar"),
-        ({**BASE, "metrics": {"temperatura_c": 24.1, "humedad_pct": 45.0}},
+        ({**BASE, "metrics": {k: v for k, v in BASE["metrics"].items()
+                              if k != "presion_hpa"}},
          "sensor ambiental sin presion"),
         ({**BASE, "source_type": "dominio_laboral", "source_id": "aw-watcher-web",
-          "metrics": {"url": "https://github.com/org/repo?token=abc", "segundos": 300}},
-         "URL completa en vez de dominio raiz"),
+          "metrics": {"url": "https://github.com/org/repo?token=abc",
+                      "minutos_dentro_del_dominio_laboral_auditado": 5,
+                      "minutos_de_distraccion": 10, "%de_productividad": 33.3}},
+         "URL completa en vez de dominio auditado"),
+        ({**BASE, "metrics": {k: v for k, v in BASE["metrics"].items()
+                              if k != "%de_productividad"}},
+         "sin %de_productividad"),
     ],
 )
 def test_rechaza_registro_invalido(cliente, payload, motivo):
@@ -162,15 +176,21 @@ def test_acepta_las_cuatro_metricas_aprobadas(cliente):
     # Las cuatro fuentes con sus llaves obligatorias.
     fuentes = [
         ("sensor_ambiental", "bme280-zona-A",
-         {"temperatura_c": 22.4, "humedad_pct": 51.0, "presion_hpa": 1012.8}),
+         {"temperatura_c": 22.4, "humedad_pct": 51.0, "presion_hpa": 1012.8,
+          "alerta_generada": False, "notificacion_recomendacion_realizada": False,
+          "numero_de_notificacion_recomendacion_realizada": 0,
+          "%de_productividad": 78.0}),
         ("dominio_laboral", "aw-watcher-web",
-         {"dominio_raiz": "github.com", "segundos": 600}),
+         {"dominio_laboral_auditado": "github.com",
+          "minutos_dentro_del_dominio_laboral_auditado": 10,
+          "minutos_de_distraccion": 5, "%de_productividad": 66.7}),
         ("entrega_sprint", "jira-board-42",
          {"sprint_id": "SPR-001", "story_points_done": 29,
-          "story_points_comprometidos": 34, "tasa_entrega": 0.853}),
+          "story_points_comprometidos": 34, "%tasa_de_entrega": 85.3,
+          "%de_productividad": 85.3}),
         ("conectividad_vpn", "vpn-corporativa",
          {"minutos_conectividad_neta": 468, "minutos_despues_8pm": 45,
-          "bandera_horas_sobretiempo": True}),
+          "bandera_horas_sobretiempo": True, "%de_productividad": 97.5}),
     ]
     for i, (tipo, fuente, metricas) in enumerate(fuentes, start=20):
         r = cliente.post("/v1/registros", json=registro(

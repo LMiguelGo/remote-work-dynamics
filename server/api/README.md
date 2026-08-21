@@ -145,7 +145,15 @@ Petición:
   "employee_id": null,
   "seq": 1,
   "ts": "2026-08-19T09:00:00Z",
-  "metrics": { "temperatura_c": 22.2, "humedad_pct": 53.4, "presion_hpa": 1018.78 }
+  "metrics": {
+    "temperatura_c": 22.2,
+    "humedad_pct": 53.4,
+    "presion_hpa": 1018.78,
+    "alerta_generada": false,
+    "notificacion_recomendacion_realizada": false,
+    "numero_de_notificacion_recomendacion_realizada": 0,
+    "%de_productividad": 67.5
+  }
 }
 ```
 
@@ -204,12 +212,14 @@ Una sola envoltura para todas las fuentes. Lo único que varía es `source_type`
 
 | `source_type` | Llaves requeridas en `metrics` |
 |---|---|
-| `sensor_ambiental` | `temperatura_c`, `humedad_pct`, `presion_hpa` |
-| `dominio_laboral` | `dominio_raiz`, `segundos` |
-| `entrega_sprint` | `sprint_id`, `story_points_done`, `story_points_comprometidos` |
-| `conectividad_vpn` | `minutos_conectividad_neta`, `minutos_despues_8pm` |
+| `sensor_ambiental` | `temperatura_c`, `humedad_pct`, `presion_hpa`, `alerta_generada`, `notificacion_recomendacion_realizada`, `numero_de_notificacion_recomendacion_realizada`, `%de_productividad` |
+| `dominio_laboral` | `dominio_laboral_auditado`, `minutos_dentro_del_dominio_laboral_auditado`, `minutos_de_distraccion`, `%de_productividad` |
+| `entrega_sprint` | `sprint_id`, `story_points_done`, `story_points_comprometidos`, `%tasa_de_entrega`, `%de_productividad` |
+| `conectividad_vpn` | `minutos_conectividad_neta`, `minutos_despues_8pm`, `%de_productividad` |
 
-Las métricas derivadas se aceptan pero no se exigen, ya que el servicio almacena sin interpretar.
+`%de_productividad` es común a las cuatro fuentes, de modo que los indicadores puedan compararse entre ellas.
+
+Otras métricas derivadas, como `bandera_horas_sobretiempo`, se aceptan pero no se exigen, ya que el servicio almacena sin interpretar.
 
 ### Reglas de validación
 
@@ -253,7 +263,7 @@ python -m pytest
 **Salida esperada:**
 
 ```
-19 passed
+20 passed
 ```
 
 Las pruebas se ejecutan contra una base de datos temporal mediante `dependency_overrides`, sin afectar los datos reales.
@@ -298,7 +308,7 @@ python tools/enviar_registros.py --n 12 --invalidos --duplicados
 
 ```
 Validos aceptados : 12/12
-Invalidos rechazados: 7/7
+Invalidos rechazados: 8/8
 Duplicados detectados: 3/3
 ```
 
