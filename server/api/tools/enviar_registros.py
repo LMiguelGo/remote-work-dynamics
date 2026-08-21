@@ -20,20 +20,30 @@ def construir_registro(seq: int, base: datetime, private: bool = False) -> dict:
 
     if tipo == "sensor_ambiental":
         # Rangos del BME280. La presion en hPa.
+        temperatura = round(random.uniform(19.5, 27.5), 1)
+        # La alerta se dispara fuera de la banda de confort.
+        alerta = temperatura > 27.0 or temperatura < 20.0
         fuente, empleado = "bme280-zona-A", None
         ts = base + timedelta(seconds=2 * (seq - 1))
         metricas = {
-            "temperatura_c": round(random.uniform(19.5, 27.5), 1),
+            "temperatura_c": temperatura,
             "humedad_pct": round(random.uniform(35.0, 65.0), 1),
             "presion_hpa": round(random.uniform(1008.0, 1020.0), 2),
+            "alerta_generada": alerta,
+            "notificacion_recomendacion_realizada": alerta,
+            "numero_de_notificacion_recomendacion_realizada": 1 if alerta else 0,
+            "%de_productividad": round(random.uniform(60.0, 95.0), 1),
         }
     elif tipo == "dominio_laboral":
-        # Bloques de 15 min, solo dominio raiz.
+        # Bloques de 15 min sobre el dominio auditado, sin URL completa.
+        dentro = random.randint(1, 15)
         fuente, empleado = "aw-watcher-web", "emp-001"
         ts = base + timedelta(minutes=15 * (seq - 1))
         metricas = {
-            "dominio_raiz": random.choice(DOMINIOS_LABORALES),
-            "segundos": random.randint(60, 900),
+            "dominio_laboral_auditado": random.choice(DOMINIOS_LABORALES),
+            "minutos_dentro_del_dominio_laboral_auditado": dentro,
+            "minutos_de_distraccion": 15 - dentro,
+            "%de_productividad": round(100 * dentro / 15, 1),
         }
     elif tipo == "entrega_sprint":
         # Un registro por sprint, a nivel de equipo.
@@ -45,17 +55,21 @@ def construir_registro(seq: int, base: datetime, private: bool = False) -> dict:
             "sprint_id": f"SPR-{seq:03d}",
             "story_points_done": hechos,
             "story_points_comprometidos": comprometidos,
-            "tasa_entrega": round(hechos / comprometidos, 3),
+            "%tasa_de_entrega": round(100 * hechos / comprometidos, 1),
+            "%de_productividad": round(100 * hechos / comprometidos, 1),
         }
     else:
         # Agregado diario, ya descontada la inactividad de red.
         despues_8pm = random.choice([0, 0, 15, 45, 90])
+        neta = random.randint(380, 540)
         fuente, empleado = "vpn-corporativa", "emp-001"
         ts = base + timedelta(days=seq - 1)
         metricas = {
-            "minutos_conectividad_neta": random.randint(380, 540),
+            "minutos_conectividad_neta": neta,
             "minutos_despues_8pm": despues_8pm,
             "bandera_horas_sobretiempo": despues_8pm > 0,
+            # 480 min = jornada de 8 h.
+            "%de_productividad": round(min(100.0, 100 * neta / 480), 1),
         }
 
     return {
@@ -70,34 +84,49 @@ def construir_registro(seq: int, base: datetime, private: bool = False) -> dict:
     }
 
 
+# Juego completo de metricas ambientales, para que cada caso invalido falle por
+# una sola razon y no por metricas incompletas de paso.
+AMBIENTAL_OK = {
+    "temperatura_c": 22.0,
+    "humedad_pct": 50.0,
+    "presion_hpa": 1013.2,
+    "alerta_generada": False,
+    "notificacion_recomendacion_realizada": False,
+    "numero_de_notificacion_recomendacion_realizada": 0,
+    "%de_productividad": 80.0,
+}
+
 # Un caso por regla. Los seq van desde 90 para no chocar con los validos.
 REGISTROS_INVALIDOS = [
     ({"schema_version": "1.0", "source_type": "sensor_ambiental", "seq": 90,
-      "ts": "2026-08-19T10:00:00Z",
-      "metrics": {"temperatura_c": 22.0, "humedad_pct": 50.0, "presion_hpa": 1013.2}},
+      "ts": "2026-08-19T10:00:00Z", "metrics": dict(AMBIENTAL_OK)},
      "sin source_id"),
     ({"schema_version": "1.0", "source_id": "bme280-zona-A", "source_type": "sensor_ambiental",
-      "seq": 91, "ts": "19/08/2026 10:00",
-      "metrics": {"temperatura_c": 22.0, "humedad_pct": 50.0, "presion_hpa": 1013.2}},
+      "seq": 91, "ts": "19/08/2026 10:00", "metrics": dict(AMBIENTAL_OK)},
      "ts con formato invalido"),
     ({"schema_version": "1.0", "source_id": "webcam-01", "source_type": "video_facial",
       "seq": 92, "ts": "2026-08-19T10:00:00Z", "metrics": {"atencion": 0.8}},
      "metrica descartada en la reunion"),
     ({"schema_version": "1.0", "source_id": "bme280-zona-A", "source_type": "sensor_ambiental",
-      "seq": 0, "ts": "2026-08-19T10:00:00Z",
-      "metrics": {"temperatura_c": 22.0, "humedad_pct": 50.0, "presion_hpa": 1013.2}},
+      "seq": 0, "ts": "2026-08-19T10:00:00Z", "metrics": dict(AMBIENTAL_OK)},
      "seq menor que 1"),
     ({"schema_version": "1.0", "source_id": "bme280-zona-A", "source_type": "sensor_ambiental",
       "seq": 93, "ts": "2026-08-19T10:00:00Z", "metrics": {}},
      "metrics vacio"),
     ({"schema_version": "1.0", "source_id": "bme280-zona-A", "source_type": "sensor_ambiental",
       "seq": 94, "ts": "2026-08-19T10:00:00Z",
-      "metrics": {"temperatura_c": 22.0, "humedad_pct": 50.0}},
+      "metrics": {k: v for k, v in AMBIENTAL_OK.items() if k != "presion_hpa"}},
      "sensor ambiental sin presion"),
+    ({"schema_version": "1.0", "source_id": "bme280-zona-A", "source_type": "sensor_ambiental",
+      "seq": 96, "ts": "2026-08-19T10:00:00Z",
+      "metrics": {k: v for k, v in AMBIENTAL_OK.items() if k != "%de_productividad"}},
+     "sensor ambiental sin %de_productividad"),
     ({"schema_version": "1.0", "source_id": "aw-watcher-web", "source_type": "dominio_laboral",
       "seq": 95, "ts": "2026-08-19T10:00:00Z",
-      "metrics": {"url": "https://github.com/org/repo/pull/12?token=abc", "segundos": 300}},
-     "URL completa en vez de dominio raiz"),
+      "metrics": {"url": "https://github.com/org/repo/pull/12?token=abc",
+                  "minutos_dentro_del_dominio_laboral_auditado": 5,
+                  "minutos_de_distraccion": 10, "%de_productividad": 33.3}},
+     "URL completa en vez de dominio auditado"),
 ]
 
 

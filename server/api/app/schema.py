@@ -10,18 +10,36 @@ SCHEMA_VERSION = "1.0"
 # Fuentes aceptadas. Un tipo que no este aqui se rechaza.
 SOURCE_TYPES = {
     "sensor_ambiental",   # BME280 via ESP32: temperatura, humedad, presion
-    "dominio_laboral",    # dominio raiz por bloque de 15 min
+    "dominio_laboral",    # dominio auditado por bloque de 15 min
     "entrega_sprint",     # story points hechos sobre comprometidos
     "conectividad_vpn",   # minutos de conexion neta por dia
 }
 
-# Solo las medidas crudas. Las derivadas se aceptan pero no se exigen.
 # El sufijo de unidad en el nombre evita confundir hPa con Pa.
+# %de_productividad va en las cuatro fuentes para poder comparar entre ellas.
 METRICAS_REQUERIDAS = {
-    "sensor_ambiental": {"temperatura_c", "humedad_pct", "presion_hpa"},
-    "dominio_laboral": {"dominio_raiz", "segundos"},
-    "entrega_sprint": {"sprint_id", "story_points_done", "story_points_comprometidos"},
-    "conectividad_vpn": {"minutos_conectividad_neta", "minutos_despues_8pm"},
+    "sensor_ambiental": {
+        "temperatura_c", "humedad_pct", "presion_hpa",
+        "alerta_generada",
+        "notificacion_recomendacion_realizada",
+        "numero_de_notificacion_recomendacion_realizada",
+        "%de_productividad",
+    },
+    "dominio_laboral": {
+        "dominio_laboral_auditado",
+        "minutos_dentro_del_dominio_laboral_auditado",
+        "minutos_de_distraccion",
+        "%de_productividad",
+    },
+    "entrega_sprint": {
+        "sprint_id", "story_points_done", "story_points_comprometidos",
+        "%tasa_de_entrega",
+        "%de_productividad",
+    },
+    "conectividad_vpn": {
+        "minutos_conectividad_neta", "minutos_despues_8pm",
+        "%de_productividad",
+    },
 }
 
 
