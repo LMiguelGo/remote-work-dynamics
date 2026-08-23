@@ -1,0 +1,15 @@
+# Python virtual enviroment
+.venv/
+venv/
+env/
+
+# Python cache files
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Database files
+*.db
+*.sqlite3
+server/api/datos/*.db
