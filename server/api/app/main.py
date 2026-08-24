@@ -7,7 +7,7 @@ from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
-from app import storage
+from app import service, storage
 from app.api import router
 from app.config import settings
 
@@ -22,6 +22,7 @@ log = logging.getLogger("backend")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     storage.inicializar()
+    service.marcar_arranque()
     with storage.conexion() as con:
         n = storage.contar_registros(con)
     log.info("almacenamiento_listo ruta=%s registros_existentes=%d", settings.db_path, n)
@@ -31,7 +32,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Backend de monitoreo - Infraestructura Telematica",
-    summary="HU-BAK-01: recepcion y almacenamiento de registros de telemetria.",
+    summary="HU-BAK-01 recepcion y almacenamiento. HU-BAK-02 consulta de solo lectura.",
     version="1.0",
     lifespan=lifespan,
 )
@@ -49,8 +50,13 @@ async def registro_invalido(request: Request, exc: RequestValidationError):
     except Exception:
         cuerpo = {"_cuerpo_no_parseable": True}
 
-    with storage.conexion() as con:
-        rechazo_id = storage.registrar_rechazo(con, causas, cuerpo)
+    try:
+        with storage.conexion() as con:
+            rechazo_id = storage.registrar_rechazo(con, causas, cuerpo)
+    except Exception:
+        # Que no se pueda guardar la traza no puede convertir un 422 en un 500.
+        rechazo_id = None
+        log.exception("rechazo_no_registrado")
 
     log.warning("registro_rechazado rechazo_id=%s causas=%s", rechazo_id, causas)
     return JSONResponse(

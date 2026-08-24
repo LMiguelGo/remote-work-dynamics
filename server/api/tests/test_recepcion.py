@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import sqlite3
+
 import pytest
 from fastapi.testclient import TestClient
 
 from app import storage
-from app.api import obtener_conexion
+from app.api import obtener_conexion, obtener_conexion_lectura
 from app.main import app
 
 # Registro base. Cada prueba cambia solo el campo que le interesa.
@@ -38,7 +40,12 @@ def cliente(tmp_path, monkeypatch):
         with storage.conexion(db) as con:
             yield con
 
+    def lectura_de_prueba():
+        with storage.conexion_lectura(db) as con:
+            yield con
+
     app.dependency_overrides[obtener_conexion] = conexion_de_prueba
+    app.dependency_overrides[obtener_conexion_lectura] = lectura_de_prueba
     with TestClient(app) as c:
         yield c
     app.dependency_overrides.clear()
@@ -134,6 +141,25 @@ def test_el_servicio_sigue_vivo_tras_un_rechazo(cliente):
     cliente.post("/v1/registros", json=registro(seq=0))
     r = cliente.post("/v1/registros", json=registro(seq=1))
     assert r.status_code == 201
+
+
+def test_sigue_devolviendo_422_aunque_no_pueda_guardar_la_traza(cliente, monkeypatch):
+    def falla(*_a, **_k):
+        raise sqlite3.OperationalError("no such table: rechazos")
+
+    monkeypatch.setattr(storage, "registrar_rechazo", falla)
+    r = cliente.post("/v1/registros", json=registro(seq=0))
+    assert r.status_code == 422
+    assert r.json()["ack"] is False
+    assert r.json()["rechazo_id"] is None
+
+
+def test_rehace_el_esquema_si_la_base_quedo_sin_tablas(tmp_path):
+    # Es lo que deja _abrir cuando se borra datos/ con el servicio arriba.
+    db = tmp_path / "vacia.db"
+    sqlite3.connect(db).close()
+    with storage.conexion(db) as con:
+        assert storage.contar_registros(con) == 0
 
 
 def test_los_rechazos_quedan_registrados(cliente):

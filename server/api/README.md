@@ -1,6 +1,6 @@
 # Backend de telemetría — Infraestructura Telemática para el Análisis de Dinámicas de Trabajo Remoto
 
-Servicio de recepción y almacenamiento de registros de telemetría para un sistema de monitoreo de trabajo remoto. Expone una API REST que recibe registros de distintas fuentes de captura, los valida contra un contrato único y los persiste.
+Servicio de recepción, almacenamiento y consulta de registros de telemetría para un sistema de monitoreo de trabajo remoto. Expone una API REST que recibe registros de distintas fuentes de captura, los valida contra un contrato único, los persiste y los devuelve por endpoints de solo lectura.
 
 Construido con **FastAPI**, **Pydantic v2** y **SQLite**.
 
@@ -10,14 +10,14 @@ Construido con **FastAPI**, **Pydantic v2** y **SQLite**.
 
 El sistema recolecta señales de contexto laboral sin acceder a contenido privado. El principio de diseño es la minimización: se capturan agregados y metadatos, nunca contenido de comunicaciones, pulsaciones individuales, audio ni video.
 
-Este componente es la capa de entrada. Su responsabilidad es recibir, validar, almacenar y confirmar. No interpreta los datos ni calcula indicadores, tareas que corresponden a la capa de analítica.
+Este componente es la capa de entrada y la de acceso. Su responsabilidad es recibir, validar, almacenar, confirmar y exponer lo almacenado. Calcula agregados descriptivos sobre los registros, pero no interpreta los datos ni deriva conclusiones, tarea que corresponde a la capa de analítica.
 
 ### Métricas soportadas
 
 | Fuente | `source_type` | Qué mide |
 |---|---|---|
 | Sensor BME280 vía ESP32 | `sensor_ambiental` | Temperatura, humedad y presión |
-| Agente de navegación | `dominio_laboral` | Dominio raíz por bloque de tiempo, nunca la URL |
+| Agente de navegación | `dominio_laboral` | Dominio auditado por bloque de tiempo, nunca la URL |
 | Jira, Trello o Asana | `entrega_sprint` | Story points completados sobre comprometidos |
 | VPN corporativa | `conectividad_vpn` | Minutos de conexión neta por día |
 
@@ -51,7 +51,20 @@ POST /v1/registros
    └─ 201 con el acuse
 ```
 
+Recorrido de una consulta:
+
+```
+GET /v1/registros/resumen
+   │
+   ├─ api.py        abre una conexión en modo solo lectura
+   ├─ service.py    compone los bloques del resumen
+   ├─ storage.py    agrega en SQL, sin traer las filas a memoria
+   └─ 200 con el resumen
+```
+
 La lógica de negocio no conoce HTTP. Un transporte alterno, como un suscriptor MQTT, invoca `service.recibir()` directamente y obtiene el mismo comportamiento y el mismo acuse sin duplicar código.
+
+Escritura y lectura usan conexiones distintas. La de lectura se abre con `mode=ro`, de manera que la imposibilidad de escribir desde un endpoint de consulta la impone el motor de base de datos y no una convención del código.
 
 ---
 
@@ -122,17 +135,32 @@ Todos los endpoints cuelgan del prefijo de versión `/v1`.
 
 | Método | Ruta | Descripción |
 |---|---|---|
-| `GET` | `/v1/health` | Verificación de vida del servicio |
+| `GET` | `/v1/health` | Estado del servicio y del almacenamiento |
 | `POST` | `/v1/registros` | Recibe, valida y almacena un registro |
+| `GET` | `/v1/registros/ultimo` | Último registro almacenado |
+| `GET` | `/v1/registros/resumen` | Resumen agregado del conjunto |
 | `GET` | `/v1/registros/conteo` | Conteo de almacenados y rechazados |
+
+Un único método de escritura. Los cuatro endpoints de consulta responden `405` ante `POST`, `PUT`, `PATCH` o `DELETE`.
 
 ### `GET /v1/health`
 
-Consulta la base de datos, de modo que no responde correctamente si el almacenamiento está caído.
+Abre la base por su cuenta en lugar de recibir la conexión por inyección, de modo que puede informar de un fallo del almacenamiento en vez de caer junto con él.
 
 ```json
-{ "status": "ok", "schema_version": "1.0" }
+{
+  "status": "ok",
+  "schema_version": "1.0",
+  "api_prefix": "/v1",
+  "almacenamiento_accesible": true,
+  "ruta_almacenamiento": "datos/telemetria.db",
+  "registros_almacenados": 12,
+  "tiempo_activo_s": 12.7,
+  "consultado_en": "2026-08-24T01:43:50.529024Z"
+}
 ```
+
+Responde `503` con `"status": "sin_almacenamiento"` y `registros_almacenados` nulo cuando el servicio está en pie pero no alcanza la base.
 
 ### `POST /v1/registros`
 
@@ -183,11 +211,91 @@ Respuesta `422` cuando el registro incumple el contrato:
 
 Un registro inválido no interrumpe el servicio. Se rechaza, se conserva la traza con su causa y el servicio continúa operando.
 
+Cuando la traza no se puede guardar, la respuesta sigue siendo `422` y el `rechazo_id` llega nulo. Un registro inválido tiene que rechazarse aunque el almacenamiento esté fallando, así que un fallo al escribir la traza no convierte el `422` en un `500`.
+
 ### Idempotencia
 
 La escritura es idempotente respecto al par `(source_id, seq)`. Reenviar un registro ya almacenado devuelve `201` con `duplicate: true` y el `record_id` original, sin crear un duplicado.
 
 Esto permite que un agente con almacenamiento temporal reenvíe su cola completa tras una reconexión sin inflar los conteos.
+
+### `GET /v1/registros/ultimo`
+
+Devuelve el registro completo con el `record_id` más alto, es decir el último en llegar. No es necesariamente el de `ts` mayor: un registro retenido en un buffer llega tarde trayendo una hora anterior.
+
+```json
+{
+  "record_id": 12,
+  "schema_version": "1.0",
+  "source_id": "vpn-corporativa",
+  "source_type": "conectividad_vpn",
+  "employee_id": "emp-001",
+  "seq": 12,
+  "ts": "2026-08-30T09:00:00Z",
+  "received_at": "2026-08-24T01:43:49Z",
+  "private_mode": false,
+  "metrics": {
+    "%de_productividad": 100.0,
+    "minutos_conectividad_neta": 536,
+    "minutos_despues_8pm": 0
+  }
+}
+```
+
+Responde `404` con la base vacía, porque no tener ningún registro y tener un último registro vacío son situaciones distintas para quien consume la API.
+
+### `GET /v1/registros/resumen`
+
+Agregados descriptivos del conjunto, calculados en SQL. Las métricas se leen dentro de `metrics_json` con `json_extract`, sin traer las filas a memoria.
+
+```json
+{
+  "generado_en": "2026-08-24T01:43:50Z",
+  "totales": {
+    "registros": 12,
+    "rechazos": 8,
+    "fuentes": 4,
+    "empleados": 1,
+    "en_modo_privado": 0
+  },
+  "rango_temporal": {
+    "primer_ts": "2026-08-19T09:00:00Z",
+    "ultimo_ts": "2027-01-06T09:00:00Z",
+    "primer_received_at": "2026-08-24T01:43:49Z",
+    "ultimo_received_at": "2026-08-24T01:43:49Z"
+  },
+  "por_tipo_de_fuente": [
+    {
+      "source_type": "conectividad_vpn",
+      "registros": 3,
+      "fuentes": 1,
+      "primer_ts": "2026-08-22T09:00:00Z",
+      "ultimo_ts": "2026-08-30T09:00:00Z",
+      "productividad_media_pct": 94.2
+    }
+  ],
+  "por_fuente": { "vpn-corporativa": 3 },
+  "indicadores": {
+    "productividad_media_pct": 81.1,
+    "alertas_ambientales": 0,
+    "tasa_entrega_media_pct": 89.7,
+    "conectividad_neta_media_min": 470.7,
+    "distraccion_media_min": 5.7
+  }
+}
+```
+
+Cada indicador se calcula solo sobre la fuente a la que pertenece y queda nulo mientras esa fuente no haya enviado datos. `productividad_media_pct` sí atraviesa las cuatro, porque las cuatro reportan esa métrica.
+
+### Solo lectura
+
+Los endpoints de consulta se apoyan en `storage.conexion_lectura`, que abre el archivo con `mode=ro`. Cualquier intento de escritura por esa conexión falla en el motor:
+
+```
+sqlite3.OperationalError: attempt to write a readonly database
+```
+
+La protección es doble. En HTTP, las rutas solo están declaradas para `GET` y cualquier otro método recibe `405`. En la base, la conexión no tiene permiso de escritura aunque el código lo intentara.
 
 ---
 
@@ -252,6 +360,10 @@ Otras métricas derivadas, como `bandera_horas_sobretiempo`, se aceptan pero no 
 
 SQLite opera en modo **WAL**, que admite un escritor y varios lectores concurrentes.
 
+El esquema se crea al arrancar el servicio. Cuando se borra la carpeta `datos/` con el servicio activo, la conexión de escritura vuelve a crear el archivo y detecta que las tablas no están, así que las rehace en la siguiente petición. Sin eso, el archivo quedaría vacío y toda escritura fallaría con `no such table`.
+
+La secuencia de `record_id` puede presentar huecos. Un reenvío duplicado reserva el número antes de que se compruebe la restricción `UNIQUE`, y al descartarse la fila ese número ya está gastado. El identificador sirve para ordenar, no para contar.
+
 ---
 
 ## Pruebas
@@ -263,10 +375,10 @@ python -m pytest
 **Salida esperada:**
 
 ```
-20 passed
+52 passed
 ```
 
-Las pruebas se ejecutan contra una base de datos temporal mediante `dependency_overrides`, sin afectar los datos reales.
+Las pruebas se ejecutan contra una base de datos temporal mediante `dependency_overrides`, sin afectar los datos reales. Están repartidas en `tests/test_recepcion.py`, para la escritura, y `tests/test_consulta.py`, para la lectura.
 
 Ejecutar un grupo concreto:
 
@@ -283,8 +395,13 @@ Cobertura por área:
 | Normalización | Una marca temporal con desfase horario queda en UTC |
 | Conteo | Lo almacenado coincide con lo enviado |
 | Validación | Los registros inválidos se rechazan y queda la traza |
-| Resiliencia | El servicio sigue operando tras un rechazo |
+| Resiliencia | El servicio sigue operando tras un rechazo, y el `422` se sostiene aunque no se pueda guardar la traza |
+| Recuperación | La conexión de escritura rehace el esquema si la base quedó sin tablas |
 | Idempotencia | El reenvío no duplica y respeta la unicidad por fuente |
+| Estado | `/health` informa del fallo del almacenamiento en lugar de caer |
+| Último registro | Corresponde al último ingresado, no al de fecha mayor |
+| Resumen | Totales, rango temporal e indicadores, incluida la base vacía |
+| Solo lectura | Los métodos de escritura dan `405` y la conexión rechaza el `INSERT` |
 
 ---
 
@@ -324,6 +441,33 @@ Devuelve código de salida `0` si todas las comprobaciones pasan y `1` en caso c
 
 > Sobre una base vacía las comprobaciones se cumplen de forma trivial. La herramienta solo aporta información con datos almacenados.
 
+### Consulta de los endpoints
+
+Cliente externo que recorre los cuatro endpoints de lectura, imprime cada respuesta y comprueba que ninguno admite escritura.
+
+```bash
+python tools/consultar_endpoints.py
+```
+
+**Salida esperada:**
+
+```
+  [ OK ] /health                POST=405  PUT=405  PATCH=405  DELETE=405
+  [ OK ] /registros/ultimo      POST=405  PUT=405  PATCH=405  DELETE=405
+  [ OK ] /registros/resumen     POST=405  PUT=405  PATCH=405  DELETE=405
+  [ OK ] /registros/conteo      POST=405  PUT=405  PATCH=405  DELETE=405
+```
+
+### Verificación del último registro
+
+Comprueba de forma activa que el endpoint devuelve el último ingresado: consulta el estado actual, envía un registro nuevo y verifica que el endpoint lo refleje. Contrasta además contra la base directamente, sin pasar por la API.
+
+```bash
+python tools/verificar_ultimo.py
+```
+
+Devuelve código de salida `0` si todas las comprobaciones pasan y `1` en caso contrario.
+
 ---
 
 ## Configuración
@@ -354,10 +498,13 @@ backend/
 │   ├── service.py                    Reglas de negocio
 │   └── storage.py                    Acceso a datos
 ├── tests/
-│   └── test_recepcion.py             Pruebas automáticas
+│   ├── test_recepcion.py             Pruebas de escritura
+│   └── test_consulta.py              Pruebas de lectura
 ├── tools/
 │   ├── enviar_registros.py           Emisor de prueba
-│   └── verificar_almacenamiento.py   Verificador independiente
+│   ├── verificar_almacenamiento.py   Verificador de lo almacenado
+│   ├── consultar_endpoints.py        Cliente externo de consulta
+│   └── verificar_ultimo.py           Verificador del último registro
 ├── pytest.ini
 └── requirements.txt
 ```
@@ -374,10 +521,18 @@ backend/
 
 **Rechazo explícito de fuentes no declaradas.** Una fuente que el proyecto no aprobó no puede entrar por omisión.
 
+**Conexión en modo `ro` para las consultas en lugar de confiar en que el código no escriba.** Una convención se rompe con un descuido en una revisión de código. El permiso del motor no.
+
+**Agregación en SQL en lugar de en Python.** Traer todas las filas a memoria para promediarlas deja de funcionar en cuanto la tabla crece, y el resumen se consulta en cada refresco del panel.
+
+**El esquema se rehace en la conexión de escritura y no solo al arrancar.** La guía de ejecución propone borrar `datos/` para empezar limpio, y esa carpeta se puede borrar con el servicio activo. Cuando eso pasa, el archivo se vuelve a crear vacío y el servicio queda inservible hasta que se reinicia, así que la comprobación del esquema se hace al abrir la conexión.
+
+**El último registro se determina por `record_id` y no por `ts`.** El orden de llegada y el orden de captura no coinciden cuando un emisor reenvía datos retenidos.
+
 ---
 
 ## Estado
 
-Implementado: recepción, validación, almacenamiento idempotente, registro de rechazos y consulta de conteos.
+Implementado: recepción, validación, almacenamiento idempotente, registro de rechazos, y consulta de estado, último registro, conteos y resumen agregado por una API de solo lectura.
 
-Previsto: endpoints de consulta y resumen, recepción vía MQTT, servicio de métricas por empleado, agregación por equipo con umbral mínimo, y política de retención con purga de datos crudos.
+Previsto: recepción vía MQTT, servicio de métricas por empleado, agregación por equipo con umbral mínimo, y política de retención con purga de datos crudos.
