@@ -125,3 +125,79 @@ class Acuse(BaseModel):
     seq: int
     received_at: datetime
     duplicate: bool = False
+
+
+# ----------------------------------------------------------------------------
+# Respuestas de consulta (HU-BAK-02)
+# ----------------------------------------------------------------------------
+
+class Estado(BaseModel):
+
+    status: str = Field(description="ok, o sin_almacenamiento si la base no responde.")
+    schema_version: str
+    api_prefix: str
+    almacenamiento_accesible: bool
+    ruta_almacenamiento: str
+    registros_almacenados: int | None = Field(
+        default=None,
+        description="Nulo cuando la base no se pudo abrir.",
+    )
+    tiempo_activo_s: float
+    consultado_en: datetime
+
+
+class RegistroAlmacenado(BaseModel):
+    # Lo mismo que Registro mas lo que agrega el backend al guardar.
+    record_id: int
+    schema_version: str
+    source_id: str
+    source_type: str
+    employee_id: str | None = None
+    seq: int
+    ts: datetime
+    received_at: datetime
+    private_mode: bool
+    metrics: Dict[str, Any]
+
+
+class Totales(BaseModel):
+    registros: int
+    rechazos: int
+    fuentes: int
+    empleados: int
+    en_modo_privado: int
+
+
+class RangoTemporal(BaseModel):
+    primer_ts: datetime | None = None
+    ultimo_ts: datetime | None = None
+    primer_received_at: datetime | None = None
+    ultimo_received_at: datetime | None = None
+
+
+class ResumenPorTipo(BaseModel):
+    source_type: str
+    registros: int
+    fuentes: int
+    primer_ts: datetime | None = None
+    ultimo_ts: datetime | None = None
+    productividad_media_pct: float | None = None
+
+
+class Indicadores(BaseModel):
+    # Un valor por metrica aprobada. Nulo mientras esa fuente no haya enviado.
+    productividad_media_pct: float | None = None
+    alertas_ambientales: int = 0
+    tasa_entrega_media_pct: float | None = None
+    conectividad_neta_media_min: float | None = None
+    distraccion_media_min: float | None = None
+
+
+class Resumen(BaseModel):
+
+    generado_en: datetime
+    totales: Totales
+    rango_temporal: RangoTemporal
+    por_tipo_de_fuente: list[ResumenPorTipo]
+    por_fuente: Dict[str, int]
+    indicadores: Indicadores

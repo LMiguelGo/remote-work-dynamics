@@ -6,6 +6,7 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterator, Optional
+from urllib.parse import quote
 
 from app.config import settings
 
@@ -53,10 +54,20 @@ def _abrir(db_path: Path) -> sqlite3.Connection:
     return con
 
 
+def _esquema_presente(con: sqlite3.Connection) -> bool:
+    return con.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'registros'"
+    ).fetchone() is not None
+
+
 @contextmanager
 def conexion(db_path: Path | str | None = None) -> Iterator[sqlite3.Connection]:
     ruta = Path(db_path) if db_path else settings.db_path
     con = _abrir(ruta)
+    # Cuando se borra datos/ con el servicio arriba, _abrir vuelve a crear el
+    # archivo vacio y a partir de ahi toda escritura falla con "no such table".
+    if not _esquema_presente(con):
+        con.executescript(ESQUEMA)
     try:
         yield con
     except Exception:
@@ -65,6 +76,24 @@ def conexion(db_path: Path | str | None = None) -> Iterator[sqlite3.Connection]:
         if con.in_transaction:
             con.rollback()
         raise
+    finally:
+        con.close()
+
+
+@contextmanager
+def conexion_lectura(db_path: Path | str | None = None) -> Iterator[sqlite3.Connection]:
+    ruta = Path(db_path) if db_path else settings.db_path
+    if not ruta.exists():
+        raise FileNotFoundError(f"no existe la base {ruta}")
+    # mode=ro lo impone el motor. Un INSERT por esta conexion no falla por
+    # convencion, falla con "attempt to write a readonly database".
+    con = sqlite3.connect(f"file:{quote(ruta.as_posix())}?mode=ro",
+                          uri=True, isolation_level=None)
+    con.row_factory = sqlite3.Row
+    # journal_mode no se toca aqui: cambiarlo seria una escritura.
+    con.execute(f"PRAGMA busy_timeout = {settings.sqlite_busy_timeout_ms}")
+    try:
+        yield con
     finally:
         con.close()
 
@@ -166,3 +195,66 @@ def fila_a_dict(fila: sqlite3.Row) -> dict:
     d["private_mode"] = bool(d["private_mode"])
     d["metrics"] = json.loads(d.pop("metrics_json"))
     return d
+
+
+def ultimo_seq(con: sqlite3.Connection, source_id: str) -> int:
+    fila = con.execute(
+        "SELECT COALESCE(MAX(seq), 0) AS s FROM registros WHERE source_id = ?",
+        (source_id,),
+    ).fetchone()
+    return fila["s"]
+
+
+def resumen_global(con: sqlite3.Connection) -> dict:
+    fila = con.execute(
+        """SELECT COUNT(*)                       AS registros,
+                  COUNT(DISTINCT source_id)      AS fuentes,
+                  COUNT(DISTINCT employee_id)    AS empleados,
+                  MIN(ts)                        AS primer_ts,
+                  MAX(ts)                        AS ultimo_ts,
+                  MIN(received_at)               AS primer_received_at,
+                  MAX(received_at)               AS ultimo_received_at,
+                  COALESCE(SUM(private_mode), 0) AS en_modo_privado
+           FROM registros"""
+    ).fetchone()
+    return dict(fila)
+
+
+def resumen_por_tipo(con: sqlite3.Connection) -> list[dict]:
+    filas = con.execute(
+        """SELECT source_type,
+                  COUNT(*)                  AS registros,
+                  COUNT(DISTINCT source_id) AS fuentes,
+                  MIN(ts)                   AS primer_ts,
+                  MAX(ts)                   AS ultimo_ts,
+                  ROUND(AVG(json_extract(metrics_json, '$."%de_productividad"')), 1)
+                                            AS productividad_media_pct
+           FROM registros
+           GROUP BY source_type
+           ORDER BY source_type"""
+    ).fetchall()
+    return [dict(f) for f in filas]
+
+
+def indicadores(con: sqlite3.Connection) -> dict:
+    # json_extract lee dentro de metrics_json sin traer las filas a Python.
+    # El CASE deja fuera las fuentes donde la metrica no aplica: AVG ignora
+    # los NULL, asi que el promedio sale sobre las filas que si la traen.
+    fila = con.execute(
+        """SELECT ROUND(AVG(json_extract(metrics_json, '$."%de_productividad"')), 1)
+                    AS productividad_media_pct,
+                  COALESCE(SUM(CASE WHEN source_type = 'sensor_ambiental'
+                       THEN json_extract(metrics_json, '$.alerta_generada') END), 0)
+                    AS alertas_ambientales,
+                  ROUND(AVG(CASE WHEN source_type = 'entrega_sprint'
+                       THEN json_extract(metrics_json, '$."%tasa_de_entrega"') END), 1)
+                    AS tasa_entrega_media_pct,
+                  ROUND(AVG(CASE WHEN source_type = 'conectividad_vpn'
+                       THEN json_extract(metrics_json, '$.minutos_conectividad_neta') END), 1)
+                    AS conectividad_neta_media_min,
+                  ROUND(AVG(CASE WHEN source_type = 'dominio_laboral'
+                       THEN json_extract(metrics_json, '$.minutos_de_distraccion') END), 1)
+                    AS distraccion_media_min
+           FROM registros"""
+    ).fetchone()
+    return dict(fila)

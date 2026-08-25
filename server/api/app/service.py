@@ -59,3 +59,55 @@ def resumen_conteo(con: sqlite3.Connection) -> dict:
         "registros_rechazados": storage.contar_rechazos(con),
         "por_fuente": storage.conteo_por_fuente(con),
     }
+
+
+# ----------------------------------------------------------------------------
+# Consulta (HU-BAK-02)
+# ----------------------------------------------------------------------------
+
+_arranque: datetime | None = None
+
+
+def marcar_arranque() -> None:
+    global _arranque
+    _arranque = datetime.now(timezone.utc)
+
+
+def tiempo_activo_s() -> float:
+    if _arranque is None:
+        return 0.0
+    return round((datetime.now(timezone.utc) - _arranque).total_seconds(), 1)
+
+
+def estado_almacenamiento() -> tuple[bool, int | None]:
+    # Abre su propia conexion en vez de recibirla: /health tiene que poder
+    # responder que la base no esta, no caerse junto con ella.
+    try:
+        with storage.conexion_lectura() as con:
+            return True, storage.contar_registros(con)
+    except Exception as e:
+        log.error("almacenamiento_inaccesible ruta=%s error=%s", settings.db_path, e)
+        return False, None
+
+
+def resumen(con: sqlite3.Connection) -> dict:
+    global_ = storage.resumen_global(con)
+    return {
+        "generado_en": datetime.now(timezone.utc),
+        "totales": {
+            "registros": global_["registros"],
+            "rechazos": storage.contar_rechazos(con),
+            "fuentes": global_["fuentes"],
+            "empleados": global_["empleados"],
+            "en_modo_privado": global_["en_modo_privado"],
+        },
+        "rango_temporal": {
+            "primer_ts": global_["primer_ts"],
+            "ultimo_ts": global_["ultimo_ts"],
+            "primer_received_at": global_["primer_received_at"],
+            "ultimo_received_at": global_["ultimo_received_at"],
+        },
+        "por_tipo_de_fuente": storage.resumen_por_tipo(con),
+        "por_fuente": storage.conteo_por_fuente(con),
+        "indicadores": storage.indicadores(con),
+    }
