@@ -28,4 +28,23 @@ const ARQUETIPO_DIMENSION = {
   qa: 'P',
 };
 
-module.exports = { PERIODO, DIMENSIONES, NOMBRE_DIMENSION, REFERENCIAS, ARQUETIPO_DIMENSION };
+// Duracion de la jornada pactada por contrato, en horas. Sirve de base al tiempo extralaboral.
+const HORAS_PACTADAS = 8;
+
+// Umbrales ambientales con los que arranca cada empleado. Luego los ajusta a su gusto.
+// La conexion solo tiene minimo, porque una calidad alta nunca es un problema.
+const UMBRALES_DEFECTO = {
+  temperatura: { minimo: 18, maximo: 27 },
+  humedad: { minimo: 30, maximo: 70 },
+  calidad_conexion: { minimo: 55, maximo: null },
+};
+
+module.exports = {
+  PERIODO,
+  DIMENSIONES,
+  NOMBRE_DIMENSION,
+  REFERENCIAS,
+  ARQUETIPO_DIMENSION,
+  HORAS_PACTADAS,
+  UMBRALES_DEFECTO,
+};

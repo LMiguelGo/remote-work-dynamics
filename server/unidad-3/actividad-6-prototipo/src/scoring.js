@@ -1,6 +1,28 @@
 // Motor de puntaje compuesto SPACE.
 
-const { PERIODO, DIMENSIONES, REFERENCIAS, ARQUETIPO_DIMENSION } = require('./config');
+const { PERIODO, DIMENSIONES, REFERENCIAS, ARQUETIPO_DIMENSION, HORAS_PACTADAS } = require('./config');
+
+// Cada item de la microencuesta va en escala de 1 a 5. eNPS y flujo suman cuando son altos;
+// la fatiga se invierte, porque mas fatiga es peor. El resultado queda de 0 a 100.
+function satisfaccionDeEncuestas(filas) {
+  if (!filas.length) return 50;
+  const aCien = (v) => ((v - 1) / 4) * 100;
+  const porDia = filas.map((f) => (aCien(f.enps) + aCien(f.flujo) + aCien(6 - f.fatiga)) / 3);
+  return porDia.reduce((s, v) => s + v, 0) / porDia.length;
+}
+
+// Sobretiempo del periodo frente a la jornada pactada. Es contexto de bienestar, nunca puntua.
+function tiempoExtralaboral(db, usuario, periodo) {
+  const cerradas = db
+    .prepare("SELECT inicio, fin FROM jornadas WHERE usuario_id = ? AND fin IS NOT NULL AND substr(inicio,1,7) = ?")
+    .all(usuario.id, periodo);
+  if (!cerradas.length) return null;
+  const pactadas = usuario.horas_pactadas || HORAS_PACTADAS;
+  const horasReales = cerradas.reduce((s, j) => s + (new Date(j.fin) - new Date(j.inicio)) / 3.6e6, 0);
+  const horasPactadas = cerradas.length * pactadas;
+  if (horasPactadas <= 0) return null;
+  return Math.round(((horasReales - horasPactadas) / horasPactadas) * 1000) / 10;
+}
 
 // Se acota a [1, 100] para que un cero no anule la media geometrica.
 function normaliza(valor, min, max) {
@@ -75,10 +97,10 @@ function senalesCrudas(db, usuarioId, periodo) {
     )
     .get(usuarioId, usuarioId).n;
 
-  const enc = db
-    .prepare('SELECT satisfaccion FROM encuestas WHERE usuario_id = ? AND periodo = ?')
-    .get(usuarioId, periodo);
-  const satisfaccion = enc ? enc.satisfaccion : 50;
+  const encuestas = db
+    .prepare("SELECT enps, fatiga, flujo FROM encuestas_diarias WHERE usuario_id = ? AND substr(fecha,1,7) = ?")
+    .all(usuarioId, periodo);
+  const satisfaccion = satisfaccionDeEncuestas(encuestas);
 
   return {
     commitsTotal,
@@ -91,6 +113,7 @@ function senalesCrudas(db, usuarioId, periodo) {
     comentarios: revisionesValidas.c,
     autoaprobaciones,
     satisfaccion,
+    respuestasEncuesta: encuestas.length,
   };
 }
 
@@ -146,6 +169,9 @@ function calcularPuntajeUsuario(db, usuario, periodo = PERIODO) {
 
   const cobertura = DIMENSIONES.filter((d) => dimensiones[d] > 1).length;
 
+  const contexto = contextoDe(db, usuario.id);
+  contexto.extralaboral_pct = tiempoExtralaboral(db, usuario, periodo);
+
   return {
     usuario: { id: usuario.id, nombre: usuario.nombre, rol: usuario.rol, arquetipo: usuario.arquetipo },
     periodo,
@@ -154,7 +180,7 @@ function calcularPuntajeUsuario(db, usuario, periodo = PERIODO) {
     pesos,
     banderas,
     cobertura,
-    contexto: contextoDe(db, usuario.id),
+    contexto,
     senales: s,
   };
 }
@@ -218,4 +244,5 @@ module.exports = {
   calcularOrganizacion,
   mediaGeometricaPonderada,
   normaliza,
+  tiempoExtralaboral,
 };

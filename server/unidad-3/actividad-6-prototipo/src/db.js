@@ -26,7 +26,36 @@ function inicializarEsquema() {
       lider_id      INTEGER REFERENCES usuarios(id),
       cliente_id    INTEGER REFERENCES clientes(id),
       clave_demo    TEXT NOT NULL,
-      captura_activa INTEGER NOT NULL DEFAULT 1
+      captura_activa INTEGER NOT NULL DEFAULT 1,
+      horas_pactadas REAL NOT NULL DEFAULT 8
+    );
+
+    -- Jornada laboral. El empleado abre una fila al iniciar y le pone fin al cerrar.
+    CREATE TABLE IF NOT EXISTS jornadas (
+      id            INTEGER PRIMARY KEY,
+      usuario_id    INTEGER NOT NULL REFERENCES usuarios(id),
+      inicio        TEXT NOT NULL,
+      fin           TEXT
+    );
+
+    -- Microencuesta al cerrar la jornada. Alimenta la dimension S del marco SPACE.
+    CREATE TABLE IF NOT EXISTS encuestas_diarias (
+      id            INTEGER PRIMARY KEY,
+      usuario_id    INTEGER NOT NULL REFERENCES usuarios(id),
+      fecha         TEXT NOT NULL,
+      enps          INTEGER NOT NULL,
+      fatiga        INTEGER NOT NULL,
+      flujo         INTEGER NOT NULL,
+      ts            TEXT NOT NULL
+    );
+
+    -- Umbrales ambientales que define el propio empleado. Disparan las alertas.
+    CREATE TABLE IF NOT EXISTS umbrales (
+      usuario_id    INTEGER NOT NULL REFERENCES usuarios(id),
+      metrica       TEXT NOT NULL,
+      minimo        REAL,
+      maximo        REAL,
+      PRIMARY KEY (usuario_id, metrica)
     );
 
     CREATE TABLE IF NOT EXISTS eventos (
@@ -66,14 +95,6 @@ function inicializarEsquema() {
       metrica       TEXT NOT NULL,
       valor         REAL NOT NULL,
       ts            TEXT NOT NULL
-    );
-
-    -- Medida perceptual de la encuesta, que es la dimension S del marco SPACE.
-    CREATE TABLE IF NOT EXISTS encuestas (
-      usuario_id    INTEGER NOT NULL REFERENCES usuarios(id),
-      periodo       TEXT NOT NULL,
-      satisfaccion  REAL NOT NULL,
-      PRIMARY KEY (usuario_id, periodo)
     );
 
     CREATE TABLE IF NOT EXISTS pesos (

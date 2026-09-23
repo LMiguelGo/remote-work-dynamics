@@ -26,6 +26,10 @@ const ICON = {
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20h18"/><rect x="5" y="11" width="3.4" height="7" rx="1"/><rect x="10.3" y="7" width="3.4" height="11" rx="1"/><rect x="15.6" y="13" width="3.4" height="5" rx="1"/></svg>',
   chev:
     '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>',
+  clock:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>',
+  gauge:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18a8 8 0 1 1 16 0"/><path d="M12 18l4-5"/><circle cx="12" cy="18" r="1.2" fill="currentColor" stroke="none"/></svg>',
 };
 
 let token = null;
@@ -192,14 +196,47 @@ function salir() {
 // ---------- Vista del empleado ----------
 async function verEmpleado() {
   const d = await api('/api/mi-panel');
-  topbar([{ label: 'Mi entorno' }, { label: 'Transparencia', target: 'card-transparencia' }]);
+  topbar([{ label: 'Mi entorno' }, { label: 'Umbrales', target: 'card-umbrales' }, { label: 'Transparencia', target: 'card-transparencia' }]);
 
   const amb = d.ambiente;
   const con = d.conexion;
   const sinAlertas = d.alertas.length === 0;
   const bienOk = d.bienestar.nivel >= 80;
 
-  const cardAmbiente = `<div class="card" style="--i:0">
+  const j = d.jornada;
+  const abierta = j.estado === 'abierta';
+  const ext = j.extralaboralPct;
+  const extTexto = ext == null ? 'Sin jornadas cerradas aún' : `${ext > 0 ? '+' : ''}${ext}% frente a la jornada pactada`;
+  const opciones15 = (sel) => [1, 2, 3, 4, 5].map((n) => `<option value="${n}"${n === sel ? ' selected' : ''}>${n}</option>`).join('');
+
+  const cardJornada = `<div class="card" style="--i:0">
+    <div class="card-head"><div class="icon-chip">${ICON.clock}</div>
+      <div><h3 class="card-title">Mi jornada</h3></div>
+      <div class="card-tag">Tiempo</div></div>
+    <div class="dotline"><span class="dot ${abierta ? 'blue' : ''}"></span> Jornada ${abierta ? 'en curso' : 'cerrada'}${
+    j.horasHoy != null ? ` · ${j.horasHoy} h hoy` : ''
+  }</div>
+    <div class="stats" style="margin-top:16px">
+      <div class="stat"><div class="k">Jornada pactada</div><div class="v">${j.horasPactadas}<small>h</small></div></div>
+      <div class="stat"><div class="k">Tiempo extralaboral</div><div class="v">${ext == null ? '—' : `${ext > 0 ? '+' : ''}${ext}`}<small>%</small></div></div>
+    </div>
+    <div class="ctx" style="margin-top:0">Contexto, no afecta tu evaluación: ${extTexto}.</div>
+    <button class="btn ${abierta ? '' : 'solid'}" id="btnJornada" style="margin-top:16px">${abierta ? 'Finalizar jornada' : 'Iniciar jornada'}</button>
+    ${
+      d.encuestaPendiente
+        ? `<div id="micro" style="margin-top:20px;border-top:1px dashed var(--line);padding-top:18px">
+        <div class="section-label">Microencuesta al cerrar el día</div>
+        <div class="field"><label>¿Cómo terminas el día? (1 muy mal · 5 muy bien)</label><select id="mEnps">${opciones15(4)}</select></div>
+        <div class="field"><label>¿Pudiste concentrarte sin interrupciones? (1 nada · 5 mucho)</label><select id="mFlujo">${opciones15(4)}</select></div>
+        <div class="field"><label>Nivel de fatiga al terminar (1 ninguna · 5 mucha)</label><select id="mFatiga">${opciones15(2)}</select></div>
+        <button class="btn solid" id="btnMicro">Enviar microencuesta</button>
+        <p class="card-foot">Alimenta tu dimensión de satisfacción y bienestar. Tú no ves el puntaje; solo tu líder, para acompañarte.</p>
+      </div>`
+        : '<p class="card-foot">Ya respondiste la microencuesta de hoy. Gracias.</p>'
+    }
+  </div>`;
+
+  const cardAmbiente = `<div class="card" style="--i:1">
     <div class="card-head"><div class="icon-chip">${ICON.thermo}</div>
       <div><h3 class="card-title">Condiciones ambientales</h3></div>
       <div class="card-tag">Espacio físico</div></div>
@@ -214,7 +251,7 @@ async function verEmpleado() {
     <div class="card-foot">Fuente: BME280</div>
   </div>`;
 
-  const cardAlertas = `<div class="card" style="--i:1">
+  const cardAlertas = `<div class="card" style="--i:2">
     <div class="card-head"><div class="icon-chip green">${ICON.shield}</div>
       <div><h3 class="card-title">Alertas preventivas</h3><div class="card-sub">Bienestar</div></div>
       <div class="card-tag">Bienestar</div></div>
@@ -231,7 +268,7 @@ async function verEmpleado() {
   </div>`;
 
   const protegida = con.vpn;
-  const cardConexion = `<div class="card" style="--i:2">
+  const cardConexion = `<div class="card" style="--i:3">
     <div class="card-head"><div class="icon-chip">${ICON.wifi}</div>
       <div><h3 class="card-title">Conectividad laboral</h3></div>
       <div class="card-tag">Red y VPN</div></div>
@@ -243,8 +280,25 @@ async function verEmpleado() {
     <div class="card-foot">Fuente: Estado de red</div>
   </div>`;
 
+  const u = d.umbrales;
+  const cardUmbrales = `<div class="card" id="card-umbrales" style="--i:4">
+    <div class="card-head"><div class="icon-chip">${ICON.gauge}</div>
+      <div><h3 class="card-title">Mis umbrales</h3></div>
+      <div class="card-tag">Ambiente</div></div>
+    <p class="lead">Define desde qué valores quieres que te avise el sistema. Al superarlos se genera una alerta de bienestar, que es contexto y no afecta tu evaluación.</p>
+    <div class="umbral-grid">
+      <div class="field"><label>Temperatura mínima (°C)</label><input id="uTempMin" type="number" step="0.5" value="${u.temperatura.minimo ?? ''}" /></div>
+      <div class="field"><label>Temperatura máxima (°C)</label><input id="uTempMax" type="number" step="0.5" value="${u.temperatura.maximo ?? ''}" /></div>
+      <div class="field"><label>Humedad mínima (%)</label><input id="uHumMin" type="number" value="${u.humedad.minimo ?? ''}" /></div>
+      <div class="field"><label>Humedad máxima (%)</label><input id="uHumMax" type="number" value="${u.humedad.maximo ?? ''}" /></div>
+      <div class="field"><label>Conexión mínima (/100)</label><input id="uConMin" type="number" value="${u.calidad_conexion.minimo ?? ''}" /></div>
+    </div>
+    <button class="btn" id="btnUmbrales">Guardar umbrales</button>
+    <span id="umbralOk" class="dotline" hidden style="margin-top:12px"><span class="dot"></span> Umbrales actualizados</span>
+  </div>`;
+
   const capturaItems = d.queSeCaptura.map((x) => `<li>${x.fuente} · ${x.tipo}</li>`).join('') || '<li>Sin registros aún.</li>';
-  const cardTransp = `<div class="card" id="card-transparencia" style="--i:3">
+  const cardTransp = `<div class="card" id="card-transparencia" style="--i:5">
     <div class="card-head"><div class="icon-chip">${ICON.lock}</div>
       <div><h3 class="card-title">Transparencia de datos</h3></div>
       <div class="card-tag">Garantía</div></div>
@@ -263,10 +317,44 @@ async function verEmpleado() {
     'Mi entorno laboral',
     'Vista personal. Condiciones contextuales de tu espacio de trabajo.',
     'Empleado'
-  )}<div class="grid">${cardAmbiente}${cardAlertas}${cardConexion}${cardTransp}</div></div>`;
+  )}<div class="grid">${cardJornada}${cardAmbiente}${cardAlertas}${cardConexion}${cardUmbrales}${cardTransp}</div></div>`;
+
   $('btnTransp').addEventListener('click', () => {
     const p = $('transpPanel');
     p.hidden = !p.hidden;
+  });
+
+  $('btnJornada').addEventListener('click', async () => {
+    await api(`/api/jornada/${abierta ? 'finalizar' : 'iniciar'}`, { method: 'POST' });
+    await verEmpleado();
+  });
+
+  const btnMicro = $('btnMicro');
+  if (btnMicro)
+    btnMicro.addEventListener('click', async () => {
+      await api('/api/encuesta-diaria', {
+        method: 'POST',
+        body: JSON.stringify({
+          enps: Number($('mEnps').value),
+          flujo: Number($('mFlujo').value),
+          fatiga: Number($('mFatiga').value),
+        }),
+      });
+      await verEmpleado();
+    });
+
+  $('btnUmbrales').addEventListener('click', async () => {
+    const num = (id) => ($(id).value === '' ? null : Number($(id).value));
+    await api('/api/umbrales', {
+      method: 'PUT',
+      body: JSON.stringify({
+        temperatura: { minimo: num('uTempMin'), maximo: num('uTempMax') },
+        humedad: { minimo: num('uHumMin'), maximo: num('uHumMax') },
+        calidad_conexion: { minimo: num('uConMin'), maximo: null },
+      }),
+    });
+    const ok = $('umbralOk');
+    ok.hidden = false;
   });
 }
 
@@ -286,7 +374,9 @@ function personHTML(i, idx) {
     </div>
     <div class="person-detail" hidden>
       ${dimsHTML(i.dimensiones)}
-      <div class="ctx">Contexto, no puntúa: temperatura ${c.temperatura ?? '—'} °C, conexión ${c.calidad_conexion ?? '—'}/100. Cobertura: ${i.cobertura}/5 dimensiones con datos.</div>
+      <div class="ctx">Contexto, no puntúa: temperatura ${c.temperatura ?? '—'} °C, conexión ${c.calidad_conexion ?? '—'}/100, tiempo extralaboral ${
+    c.extralaboral_pct == null ? '—' : `${c.extralaboral_pct > 0 ? '+' : ''}${c.extralaboral_pct}%`
+  }. Cobertura: ${i.cobertura}/5 dimensiones con datos.</div>
       ${i.banderas.map((b) => `<div class="pregunta">${b}</div>`).join('')}
     </div>
   </div>`;

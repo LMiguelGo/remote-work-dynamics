@@ -4,6 +4,7 @@
 
 const express = require('express');
 const { db } = require('./db');
+const { evaluarLectura } = require('./alertas');
 
 const rutasIngesta = express.Router();
 
@@ -45,7 +46,9 @@ rutasIngesta.post('/sensor', (req, res) => {
     Number(valor),
     new Date().toISOString()
   );
-  res.json({ ok: true });
+  // Si la lectura rebasa el umbral que definio el empleado, se genera una alerta de bienestar.
+  const alerta = evaluarLectura(db, usuario_id, metrica, Number(valor));
+  res.json({ ok: true, alerta });
 });
 
 module.exports = { rutasIngesta };

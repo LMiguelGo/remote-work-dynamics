@@ -755,6 +755,17 @@ body {
   margin-top: 10px;
 }
 
+/* ---------- Umbrales del empleado ---------- */
+.umbral-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 18px;
+  margin-bottom: 8px;
+}
+.umbral-grid .field {
+  margin-bottom: 6px;
+}
+
 /* ---------- Responsive ---------- */
 @media (max-width: 820px) {
   .grid {
@@ -771,5 +782,8 @@ body {
   }
   .dim {
     grid-template-columns: 130px 1fr 38px;
+  }
+  .umbral-grid {
+    grid-template-columns: 1fr;
   }
 }

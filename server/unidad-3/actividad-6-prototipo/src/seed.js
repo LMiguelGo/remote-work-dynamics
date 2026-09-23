@@ -1,7 +1,8 @@
 // Genera los datos sinteticos. Reemplaza los anteriores, asi que se puede repetir.
 
 const { db, inicializarEsquema } = require('./db');
-const { PERIODO } = require('./config');
+const { PERIODO, HORAS_PACTADAS, UMBRALES_DEFECTO } = require('./config');
+const { evaluarLectura } = require('./alertas');
 
 // Semilla fija para que la demo salga siempre igual.
 function rng(semilla) {
@@ -18,10 +19,19 @@ const rand = rng(20260918);
 const enteroEntre = (min, max) => Math.floor(rand() * (max - min + 1)) + min;
 const ts = () => `${PERIODO}-${String(enteroEntre(1, 28)).padStart(2, '0')}T${String(enteroEntre(8, 18)).padStart(2, '0')}:00:00`;
 const dia = (d) => `${PERIODO}-${String(d).padStart(2, '0')}T09:00:00`;
+const clamp15 = (v) => Math.max(1, Math.min(5, v));
+// Jornada del dia d que empieza a las 08:00 y dura las horas indicadas. Devuelve marcas naturales.
+const jornadaDia = (d, horas) => {
+  const finMin = 8 * 60 + Math.round(horas * 60);
+  const hh = String(Math.floor(finMin / 60)).padStart(2, '0');
+  const mm = String(finMin % 60).padStart(2, '0');
+  const dd = String(d).padStart(2, '0');
+  return { inicio: `${PERIODO}-${dd}T08:00:00`, fin: `${PERIODO}-${dd}T${hh}:${mm}:00` };
+};
 
 inicializarEsquema();
 
-for (const t of ['alertas', 'pesos', 'encuestas', 'contexto', 'revisiones_pr', 'despliegues', 'eventos', 'usuarios', 'clientes']) {
+for (const t of ['alertas', 'umbrales', 'encuestas_diarias', 'jornadas', 'pesos', 'contexto', 'revisiones_pr', 'despliegues', 'eventos', 'usuarios', 'clientes']) {
   db.prepare(`DELETE FROM ${t}`).run();
 }
 
@@ -47,11 +57,11 @@ for (const cid of [1, 2])
     for (const [dim, peso] of Object.entries(PESOS[cid][rol])) insPeso.run(Number(cid), rol, dim, peso);
 
 const insUsuario = db.prepare(
-  'INSERT INTO usuarios (id, nombre, rol, arquetipo, lider_id, cliente_id, clave_demo, captura_activa) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+  'INSERT INTO usuarios (id, nombre, rol, arquetipo, lider_id, cliente_id, clave_demo, captura_activa, horas_pactadas) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
 );
-insUsuario.run(1, 'Patricia Ruiz', 'gerente', null, null, 1, 'demo123', 1);
-insUsuario.run(2, 'Andres Lopez', 'lider', null, 1, 1, 'demo123', 1);
-insUsuario.run(3, 'Marcela Diaz', 'lider', null, 1, 2, 'demo123', 1);
+insUsuario.run(1, 'Patricia Ruiz', 'gerente', null, null, 1, 'demo123', 1, HORAS_PACTADAS);
+insUsuario.run(2, 'Andres Lopez', 'lider', null, 1, 1, 'demo123', 1, HORAS_PACTADAS);
+insUsuario.run(3, 'Marcela Diaz', 'lider', null, 1, 2, 'demo123', 1, HORAS_PACTADAS);
 
 // Cada perfil dispara un comportamiento distinto en el motor de puntaje.
 const empleados = [
@@ -63,23 +73,29 @@ const empleados = [
   { id: 9, nombre: 'Valentina Rojas', arq: 'analista', lider: 3, cli: 2, perfil: 'solido' },
   { id: 10, nombre: 'Mateo Castro', arq: 'frontend', lider: 3, cli: 2, perfil: 'promedio' },
 ];
-for (const e of empleados) insUsuario.run(e.id, e.nombre, 'empleado', e.arq, e.lider, e.cli, 'demo123', 1);
+for (const e of empleados) insUsuario.run(e.id, e.nombre, 'empleado', e.arq, e.lider, e.cli, 'demo123', 1, HORAS_PACTADAS);
 
 const insEvento = db.prepare('INSERT INTO eventos (usuario_id, fuente, tipo, ref, ts, meta) VALUES (?, ?, ?, ?, ?, ?)');
 const insDesp = db.prepare('INSERT INTO despliegues (usuario_id, commit_ref, ok, ts) VALUES (?, ?, ?, ?)');
 const insPR = db.prepare('INSERT INTO revisiones_pr (pr_ref, autor_id, revisor_id, aprobado, comentarios, ts) VALUES (?, ?, ?, ?, ?, ?)');
 const insCtx = db.prepare('INSERT INTO contexto (usuario_id, tipo, metrica, valor, ts) VALUES (?, ?, ?, ?, ?)');
-const insEnc = db.prepare('INSERT INTO encuestas (usuario_id, periodo, satisfaccion) VALUES (?, ?, ?)');
-const insAlerta = db.prepare('INSERT INTO alertas (usuario_id, tipo, mensaje, ts) VALUES (?, ?, ?, ?)');
+const insJornada = db.prepare('INSERT INTO jornadas (usuario_id, inicio, fin) VALUES (?, ?, ?)');
+const insEnc = db.prepare('INSERT INTO encuestas_diarias (usuario_id, fecha, enps, fatiga, flujo, ts) VALUES (?, ?, ?, ?, ?, ?)');
+const insUmbral = db.prepare('INSERT INTO umbrales (usuario_id, metrica, minimo, maximo) VALUES (?, ?, ?, ?)');
 
+// Cada perfil trae ademas su patron de jornada (horasDia) y su animo tipico en la microencuesta.
 const PARAMS = {
-  solido: { commits: 22, despliegaP: 0.9, tickets: 14, lead: 20, revisiones: 12, satis: 82 },
-  colaborador: { commits: 12, despliegaP: 0.85, tickets: 10, lead: 30, revisiones: 20, satis: 78 },
-  commits_inflados: { commits: 30, despliegaP: 0.25, tickets: 6, lead: 55, revisiones: 4, satis: 60 },
-  autoaprobacion_y_conexion: { commits: 14, despliegaP: 0.8, tickets: 9, lead: 40, revisiones: 6, satis: 55 },
-  desajuste_rol: { commits: 6, despliegaP: 0.8, tickets: 5, lead: 35, revisiones: 22, satis: 74 },
-  promedio: { commits: 12, despliegaP: 0.7, tickets: 8, lead: 45, revisiones: 8, satis: 68 },
+  solido: { commits: 22, despliegaP: 0.9, tickets: 14, lead: 20, revisiones: 12, horasDia: 8.0, animo: { enps: 5, flujo: 4, fatiga: 2 } },
+  colaborador: { commits: 12, despliegaP: 0.85, tickets: 10, lead: 30, revisiones: 20, horasDia: 8.2, animo: { enps: 4, flujo: 4, fatiga: 2 } },
+  commits_inflados: { commits: 30, despliegaP: 0.25, tickets: 6, lead: 55, revisiones: 4, horasDia: 10.5, animo: { enps: 3, flujo: 3, fatiga: 4 } },
+  autoaprobacion_y_conexion: { commits: 14, despliegaP: 0.8, tickets: 9, lead: 40, revisiones: 6, horasDia: 9.2, animo: { enps: 3, flujo: 3, fatiga: 3 } },
+  desajuste_rol: { commits: 6, despliegaP: 0.8, tickets: 5, lead: 35, revisiones: 22, horasDia: 8.1, animo: { enps: 4, flujo: 4, fatiga: 3 } },
+  promedio: { commits: 12, despliegaP: 0.7, tickets: 8, lead: 45, revisiones: 8, horasDia: 8.3, animo: { enps: 3, flujo: 4, fatiga: 3 } },
 };
+
+// Umbrales de arranque para cada empleado (los mismos por defecto que luego pueden ajustar).
+for (const e of empleados)
+  for (const [metrica, def] of Object.entries(UMBRALES_DEFECTO)) insUmbral.run(e.id, metrica, def.minimo, def.maximo);
 
 const otrosDelEquipo = (e) => empleados.filter((o) => o.lider === e.lider && o.id !== e.id);
 
@@ -119,18 +135,31 @@ for (const e of empleados) {
   const connBase = e.perfil === 'autoaprobacion_y_conexion' ? 46 : 88;
   for (let k = 0; k < 8; k++) {
     const d = 3 + k * 3;
-    insCtx.run(e.id, 'ambiente', 'temperatura', Math.round((baseTemp + Math.sin(k / 2) * 0.8 + (rand() - 0.5)) * 10) / 10, dia(d));
-    insCtx.run(e.id, 'conexion', 'calidad_conexion', Math.max(20, Math.min(100, Math.round(connBase + (rand() * 8 - 4)))), dia(d));
+
+    // Jornada del dia. La duracion frente a la pactada da el tiempo extralaboral, que es contexto.
+    const j = jornadaDia(d, p.horasDia + (rand() * 0.4 - 0.2));
+    insJornada.run(e.id, j.inicio, j.fin);
+
+    // Microencuesta del dia. Sus tres items alimentan la dimension S.
+    const enps = clamp15(p.animo.enps + enteroEntre(-1, 1));
+    const flujo = clamp15(p.animo.flujo + enteroEntre(-1, 1));
+    const fatiga = clamp15(p.animo.fatiga + enteroEntre(-1, 1));
+    insEnc.run(e.id, `${PERIODO}-${String(d).padStart(2, '0')}`, enps, fatiga, flujo, dia(d));
+
+    const temp = Math.round((baseTemp + Math.sin(k / 2) * 0.8 + (rand() - 0.5)) * 10) / 10;
+    const conn = Math.max(20, Math.min(100, Math.round(connBase + (rand() * 8 - 4))));
+    insCtx.run(e.id, 'ambiente', 'temperatura', temp, dia(d));
+    insCtx.run(e.id, 'conexion', 'calidad_conexion', conn, dia(d));
+    // La alerta no se pone a mano: cada lectura se evalua contra el umbral del empleado.
+    evaluarLectura(db, e.id, 'temperatura', temp);
+    evaluarLectura(db, e.id, 'calidad_conexion', conn);
   }
   insCtx.run(e.id, 'ambiente', 'humedad', Math.round(50 + rand() * 15), dia(24));
   insCtx.run(e.id, 'ambiente', 'presion', Math.round(1008 + rand() * 12), dia(24));
-
-  insEnc.run(e.id, PERIODO, p.satis);
 }
 
-// Laura intenta aprobar su propio PR y ademas tuvo la conexion degradada.
+// Laura intenta aprobar su propio PR. Su conexion degradada dispara sola la alerta de umbral.
 insPR.run('pr-7-self', 7, 7, 1, 0, ts());
-insAlerta.run(7, 'conexion', 'Tu conexión estuvo degradada varias veces este mes. Se reportó como contexto, no afecta tu evaluación.', ts());
 
 const total = db.prepare('SELECT COUNT(*) n FROM usuarios').get().n;
 const ev = db.prepare('SELECT COUNT(*) n FROM eventos').get().n;
