@@ -6,6 +6,14 @@ const { PERIODO, UMBRALES_DEFECTO } = require('./config');
 const { iniciarSesion, exigeSesion, exigeRol } = require('./auth');
 const { calcularEquipo, calcularOrganizacion, tiempoExtralaboral } = require('./scoring');
 const { umbralesDe } = require('./alertas');
+const {
+  estadoDispositivos,
+  serieConectividad,
+  eventosConectividad,
+  ultimaLecturaMqtt,
+  leerConfig,
+  guardarConfig,
+} = require('./operacion');
 
 const router = express.Router();
 
@@ -199,6 +207,30 @@ router.get('/organizacion/equipo/:liderId', exigeSesion, exigeRol('gerente'), (r
   res.json(calcularEquipo(db, lider));
 });
 
+// ---------- Capa de operacion (gerente) ----------
+// Panel administrativo: estado de dispositivos, eventos de conectividad y configuracion.
+// Es infraestructura y contexto, nunca productividad individual.
+
+router.get('/operacion/dispositivos', exigeSesion, exigeRol('gerente'), (req, res) => {
+  res.json({ dispositivos: estadoDispositivos(db), ts: new Date().toISOString() });
+});
+
+router.get('/operacion/conectividad', exigeSesion, exigeRol('gerente'), (req, res) => {
+  res.json({
+    serie: serieConectividad(db),
+    eventos: eventosConectividad(db),
+    ts: new Date().toISOString(),
+  });
+});
+
+router.get('/operacion/config', exigeSesion, exigeRol('gerente'), (req, res) => {
+  res.json(leerConfig(db));
+});
+
+router.put('/operacion/config', exigeSesion, exigeRol('gerente'), (req, res) => {
+  res.json(guardarConfig(db, req.body || {}));
+});
+
 // Comprobacion de estado. Reporta si la base responde y cuando entro por ultima vez cada conector.
 router.get('/salud', (req, res) => {
   let base = 'ok';
@@ -220,6 +252,7 @@ router.get('/salud', (req, res) => {
     { nombre: 'github', ultimaIngesta: ultimo('eventos', " WHERE fuente = 'github'") },
     { nombre: 'jira', ultimaIngesta: ultimo('eventos', " WHERE fuente = 'jira'") },
     { nombre: 'sensores', ultimaIngesta: ultimo('contexto') },
+    { nombre: 'mqtt', ultimaIngesta: ultimaLecturaMqtt(db) },
   ].map((c) => ({ ...c, estado: c.ultimaIngesta ? 'activo' : 'sin datos' }));
 
   res.json({
