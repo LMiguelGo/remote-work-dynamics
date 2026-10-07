@@ -5,6 +5,7 @@ const express = require('express');
 const { inicializarEsquema, db } = require('./db');
 const rutasApi = require('./routes');
 const { rutasIngesta } = require('./ingest');
+const iniciarSuscriptor = require('./mqtt');
 
 inicializarEsquema();
 
@@ -18,6 +19,8 @@ app.get('/api/estado', (req, res) => {
   const n = db.prepare('SELECT COUNT(*) n FROM usuarios').get().n;
   res.json({ ok: true, usuarios: n, sembrado: n > 0 });
 });
+
+iniciarSuscriptor();
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
