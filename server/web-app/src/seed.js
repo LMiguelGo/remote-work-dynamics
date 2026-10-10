@@ -31,7 +31,7 @@ const jornadaDia = (d, horas) => {
 
 inicializarEsquema();
 
-for (const t of ['alertas', 'umbrales', 'encuestas_diarias', 'jornadas', 'pesos', 'contexto', 'revisiones_pr', 'despliegues', 'eventos', 'usuarios', 'clientes']) {
+for (const t of ['alertas', 'dispositivos', 'config_monitoreo', 'umbrales', 'encuestas_diarias', 'jornadas', 'pesos', 'contexto', 'revisiones_pr', 'despliegues', 'eventos', 'usuarios', 'clientes']) {
   db.prepare(`DELETE FROM ${t}`).run();
 }
 
@@ -160,6 +160,15 @@ for (const e of empleados) {
 
 // Laura intenta aprobar su propio PR. Su conexion degradada dispara sola la alerta de umbral.
 insPR.run('pr-7-self', 7, 7, 1, 0, ts());
+
+// El ESP32 del tablero Wokwi queda asociado a Juan Perez. El suscriptor MQTT escribira sus
+// lecturas por este mapa. Arranca sin ultima_lectura hasta que llegue el primer mensaje real.
+db.prepare('INSERT INTO dispositivos (dispositivo, usuario_id, descripcion, ultima_lectura) VALUES (?, ?, ?, ?)').run(
+  'ESP32_Wokwi',
+  4,
+  'Sensor ambiental ESP32 (DHT22 + ruido)',
+  null
+);
 
 const total = db.prepare('SELECT COUNT(*) n FROM usuarios').get().n;
 const ev = db.prepare('SELECT COUNT(*) n FROM eventos').get().n;

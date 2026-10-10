@@ -112,6 +112,21 @@ function inicializarEsquema() {
       mensaje       TEXT NOT NULL,
       ts            TEXT NOT NULL
     );
+
+    -- Cada dispositivo fisico (el ESP32) se asocia a un empleado. El suscriptor MQTT
+    -- usa este mapa para saber a quien pertenece una lectura que llega sin usuario_id.
+    CREATE TABLE IF NOT EXISTS dispositivos (
+      dispositivo     TEXT PRIMARY KEY,
+      usuario_id      INTEGER NOT NULL REFERENCES usuarios(id),
+      descripcion     TEXT,
+      ultima_lectura  TEXT
+    );
+
+    -- Configuracion de monitoreo que ajusta el gerente. Clave-valor para no atarse a columnas.
+    CREATE TABLE IF NOT EXISTS config_monitoreo (
+      clave   TEXT PRIMARY KEY,
+      valor   TEXT NOT NULL
+    );
   `);
 }
 

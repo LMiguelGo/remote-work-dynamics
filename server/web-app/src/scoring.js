@@ -185,6 +185,25 @@ function calcularPuntajeUsuario(db, usuario, periodo = PERIODO) {
   };
 }
 
+// Promedio diario del animo del equipo, para el grafico temporal de doble eje.
+// Sale de las microencuestas del periodo, agrupadas por fecha.
+function serieAnimoEquipo(db, lider, periodo = PERIODO) {
+  return db
+    .prepare(
+      "SELECT e.fecha, AVG(e.enps) enps, AVG(e.fatiga) fatiga, AVG(e.flujo) flujo " +
+        'FROM encuestas_diarias e JOIN usuarios u ON u.id = e.usuario_id ' +
+        "WHERE u.lider_id = ? AND u.rol = 'empleado' AND substr(e.fecha,1,7) = ? " +
+        'GROUP BY e.fecha ORDER BY e.fecha'
+    )
+    .all(lider.id, periodo)
+    .map((r) => ({
+      fecha: r.fecha,
+      enps: Math.round(r.enps * 100) / 100,
+      fatiga: Math.round(r.fatiga * 100) / 100,
+      flujo: Math.round(r.flujo * 100) / 100,
+    }));
+}
+
 // La metrica del lider es la agregacion del desempeno de su equipo, no su actividad individual.
 function calcularEquipo(db, lider, periodo = PERIODO) {
   const integrantes = db
@@ -215,6 +234,7 @@ function calcularEquipo(db, lider, periodo = PERIODO) {
     agregadoDimensiones: agregadoDim,
     metricaLider,
     preguntasParaElLider: banderas,
+    serieAnimo: serieAnimoEquipo(db, lider, periodo),
   };
 }
 

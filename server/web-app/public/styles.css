@@ -25,6 +25,11 @@
   box-sizing: border-box;
 }
 
+/* El atributo hidden debe ganarle a cualquier display de clase (p. ej. .dotline). */
+[hidden] {
+  display: none !important;
+}
+
 html,
 body {
   margin: 0;
@@ -871,6 +876,208 @@ body {
   margin-bottom: 6px;
 }
 
+/* ---------- Semáforo (diccionario de umbrales) ---------- */
+.chip.bad {
+  background: #fbe4e1;
+  color: var(--red);
+}
+
+.sem {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 3px 9px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.sem.ok {
+  background: var(--green-soft);
+  color: #0d7a3d;
+}
+
+.sem.warn {
+  background: var(--amber-soft);
+  color: var(--amber);
+}
+
+.sem.bad {
+  background: #fbe4e1;
+  color: var(--red);
+}
+
+.sem.none {
+  background: #eef1f6;
+  color: var(--muted);
+}
+
+/* ---------- Gráficos (Chart.js) ---------- */
+.chart-box {
+  position: relative;
+  height: 250px;
+  width: 100%;
+}
+
+.chart-box.wide {
+  height: 300px;
+}
+
+.dualchart {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+/* ---------- Tablas ---------- */
+.tablewrap {
+  overflow-x: auto;
+  margin: 2px 0 4px;
+}
+
+table.tabla {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.tabla th {
+  text-align: left;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 700;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+
+.tabla td {
+  padding: 10px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: middle;
+}
+
+.tabla.compacta td,
+.tabla.compacta th {
+  padding: 7px 9px;
+}
+
+.tabla .numcell {
+  text-align: center;
+  white-space: nowrap;
+}
+
+.tabla .ctxcell {
+  white-space: nowrap;
+}
+
+.tabla .tsmall {
+  color: var(--muted);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.filarow {
+  cursor: pointer;
+}
+
+.filarow:hover {
+  background: #f6f9ff;
+}
+
+.filarow.open {
+  background: var(--blue-soft);
+}
+
+.filarow .chev {
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+.filadetail td {
+  background: #fafcff;
+  padding: 16px 14px;
+}
+
+.idcell {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+
+.idcell b {
+  font-weight: 700;
+}
+
+.idcell span {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.ava.sm {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: var(--blue-soft);
+  color: var(--blue2);
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  font-size: 0.72rem;
+  flex: none;
+}
+
+.ava.sm svg {
+  width: 18px;
+  height: 18px;
+}
+
+.leyenda {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+
+.leyenda-nota {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+/* ---------- Conectores (salud) ---------- */
+.conectores {
+  display: grid;
+  gap: 10px;
+}
+
+.conector {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  padding: 10px 13px;
+  font-size: 0.9rem;
+}
+
+.conector b {
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  font-size: 0.8rem;
+}
+
+.conector .tsmall {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
 /* ---------- Responsive ---------- */
 @media (max-width: 820px) {
   .grid {
@@ -894,6 +1101,10 @@ body {
   }
 
   .umbral-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dualchart {
     grid-template-columns: 1fr;
   }
 }
