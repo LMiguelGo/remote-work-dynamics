@@ -10,6 +10,7 @@
     "simular": "node src/simulator.js"
   },
   "dependencies": {
+    "cors": "^2.8.6",
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.2",
     "mqtt": "^5.0.0"
