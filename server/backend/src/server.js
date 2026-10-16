@@ -7,11 +7,13 @@ const rutasApi = require('./routes');
 const { rutasIngesta } = require('./ingest');
 const iniciarSuscriptor = require('./mqtt');
 
+const cors = require('cors');
+
 inicializarEsquema();
 
 const app = express();
+app.use(cors());
 app.use(express.json());
-app.use('/', express.static(path.join(__dirname, '..', 'public')));
 app.use('/api', rutasApi);
 app.use('/ingesta', rutasIngesta);
 
