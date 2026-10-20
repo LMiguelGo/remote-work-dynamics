@@ -1,0 +1,175 @@
+// =====================================================================
+// Modelo de datos - Remote Work Dynamics
+// Migracion a PostgreSQL + TimescaleDB, despliegue en contenedores/nube.
+// Docs DBML: https://dbml.dbdiagram.io/docs
+// =====================================================================
+
+// ---------- Enums de apoyo ----------
+
+Enum team_type {
+  empleados
+  lideres
+}
+
+Enum source_type {
+  esp32
+  github
+  jira
+  slack
+  daily_survey
+  sonarqube
+  network
+  working_hours
+}
+
+Enum space_dimension {
+  S
+  P
+  A
+  C
+  E
+}
+
+Enum criticality {
+  optimo
+  precaucion
+  critico
+}
+
+Enum alert_severity {
+  info
+  warning
+  critical
+}
+
+// ---------- Roles y estructura organizacional ----------
+
+// Rol de aplicacion: define que ve cada quien.
+Table roles {
+  id integer [primary key]
+  name varchar [not null, note: 'gerente, lider, empleado']
+  description text
+}
+
+// Especialidad del empleado. Aqui viven los pesos SPACE,
+// una sola vez por especialidad, no repetidos en cada empleado.
+Table team_roles {
+  id integer [primary key]
+  name varchar [not null, note: 'backend, frontend, arquitecto, analitica, ...']
+  description text
+  weights jsonb [not null, note: 'Pesos de las 5 dimensiones: {"S":..,"P":..,"A":..,"C":..,"E":..}']
+}
+
+Table teams {
+  id integer [primary key]
+  name varchar [not null]
+  description text
+  team_type team_type [not null, note: 'empleados o lideres']
+  created_at timestamp [not null, default: `CURRENT_TIMESTAMP`]
+  leader_id integer [unique, note: 'Lider del equipo. En un equipo de lideres, el lider es el gerente']
+}
+
+Table users {
+  id integer [primary key]
+  username varchar [not null, unique]
+  password_hash varchar [not null]
+  full_name varchar
+  created_at timestamp [default: `CURRENT_TIMESTAMP`]
+  role_id integer [not null]
+  team_id integer
+}
+
+// Solo para empleados. Uno a uno con users.
+Table employee_profiles {
+  id integer [primary key]
+  user_id integer [unique, not null]
+  team_role_id integer [not null, note: 'Especialidad con sus pesos SPACE']
+  work_schedule jsonb [note: 'Jornada PACTADA (estatica): hora inicio, fin, descansos']
+  ambient_thresholds jsonb [note: 'Umbrales de temperatura, ruido y humedad del ESP32']
+  capture_active boolean [default: true]
+}
+
+// ---------- Fuentes de datos y telemetria (RAW) ----------
+
+Table data_sources {
+  id integer [primary key]
+  user_id integer [not null]
+  source_type source_type [not null]
+  identifier varchar [not null, note: 'ej: esp32_integrante_1, github_user, working_hours_user']
+  description text
+  is_active boolean [default: true]
+  created_at timestamp [default: `CURRENT_TIMESTAMP`]
+}
+
+// Tabla unica de eventos para TODAS las fuentes (Opcion A).
+// Se convierte en hypertable de Timescale particionada por time:
+//   SELECT create_hypertable('events', 'time');
+// La jornada real va aqui como evento working_hours con {inicio, fin}.
+Table events {
+  id bigint [note: 'bigint por volumen esperado']
+  time timestamp [not null]
+  source_id integer [not null]
+  event_type varchar [not null, note: 'clave de la metrica o tipo de evento (ver catalogo_metricas)']
+  payload jsonb [not null, note: 'valor(es) del evento. ej working_hours: {"inicio":..,"fin":..}']
+
+  Indexes {
+    (time, id) [pk]
+    (source_id, time)
+    (event_type, time)
+  }
+}
+
+// ---------- Salidas derivadas del sistema ----------
+
+// Alertas generadas al rebasar un umbral. Es salida, no dato crudo.
+Table alerts {
+  id integer [primary key]
+  user_id integer [not null]
+  alert_type varchar [not null]
+  message text [not null]
+  severity alert_severity [not null, default: 'warning']
+  created_at timestamp [not null, default: `CURRENT_TIMESTAMP`]
+  resolved_at timestamp [note: 'null mientras no se resuelva']
+}
+
+// Resultados procesados del marco SPACE. Los calcula la analitica
+// y los escribe aqui; backend y dashboard solo leen.
+Table dimension_analyses {
+  id integer [primary key]
+  user_id integer [not null]
+  dimension space_dimension [not null]
+  start_date date [not null]
+  end_date date [not null]
+  normalized_score decimal [not null]
+  criticality_status criticality [not null]
+  calculated_at timestamp [not null, default: `CURRENT_TIMESTAMP`]
+}
+
+Table metric_analyses {
+  id integer [primary key]
+  dimension_analysis_id integer [not null]
+  user_id integer [not null]
+  metric_name varchar [not null, note: 'clave del catalogo: temperatura, enps, lead_time_dias, ...']
+  raw_value decimal
+  normalized_value decimal
+  criticality criticality [not null]
+}
+
+// ---------- Relaciones ----------
+
+// Roles, especialidad y equipos
+Ref: users.role_id > roles.id
+Ref: users.team_id > teams.id
+Ref: teams.leader_id - users.id
+Ref: employee_profiles.user_id - users.id
+Ref: employee_profiles.team_role_id > team_roles.id
+
+// Telemetria
+Ref: data_sources.user_id > users.id
+Ref: events.source_id > data_sources.id
+
+// Salidas
+Ref: alerts.user_id > users.id
+Ref: dimension_analyses.user_id > users.id
+Ref: metric_analyses.user_id > users.id
+Ref: metric_analyses.dimension_analysis_id > dimension_analyses.id
