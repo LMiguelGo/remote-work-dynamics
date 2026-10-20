@@ -3,6 +3,8 @@ const { query } = require('../db/pool');
 const { construirSalud } = require('../controllers/salud.controller');
 const authController = require('../controllers/auth.controller');
 const empleadoController = require('../controllers/empleado.controller');
+const liderController = require('../controllers/lider.controller');
+const gerenteController = require('../controllers/gerente.controller');
 const { exigeSesion, exigeRol } = require('../middlewares/auth.middleware');
 const { exigeJson, validarCon } = require('../middlewares/validacion.middleware');
 const {
@@ -135,6 +137,38 @@ router.put(
   async (req, res, next) => {
     try {
       await empleadoController.actualizarUmbrales(req, res);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// --- Rutas del lider ---
+
+router.get('/equipo', [exigeSesion, exigeRol('lider')], async (req, res, next) => {
+  try {
+    await liderController.miEquipo(req, res);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// --- Rutas del gerente ---
+
+router.get('/organizacion', [exigeSesion, exigeRol('gerente')], async (req, res, next) => {
+  try {
+    await gerenteController.organizacion(req, res);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get(
+  '/organizacion/equipo/:liderId',
+  [exigeSesion, exigeRol('gerente')],
+  async (req, res, next) => {
+    try {
+      await gerenteController.equipoDeLider(req, res);
     } catch (err) {
       next(err);
     }
