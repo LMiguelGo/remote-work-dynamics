@@ -2,8 +2,20 @@ const express = require('express');
 const { query } = require('../db/pool');
 const { construirSalud } = require('../controllers/salud.controller');
 const authController = require('../controllers/auth.controller');
+const empleadoController = require('../controllers/empleado.controller');
+const { exigeSesion, exigeRol } = require('../middlewares/auth.middleware');
+const { exigeJson, validarCon } = require('../middlewares/validacion.middleware');
+const {
+  validarEncuestaDiaria,
+  validarEncuestaSemanal,
+  validarJornadaFin,
+  validarUmbrales,
+} = require('../utils/validacion');
 
 const router = express.Router();
+
+// Todas las rutas de empleado exigen sesion con rol empleado.
+const soloEmpleado = [exigeSesion, exigeRol('empleado')];
 
 async function contarUsuarios() {
   const r = await query('SELECT count(*)::int AS n FROM users');
@@ -46,5 +58,87 @@ router.get('/usuarios-demo', async (req, res, next) => {
     next(err);
   }
 });
+
+// --- Rutas del panel de empleado ---
+
+router.get('/mi-panel', soloEmpleado, async (req, res, next) => {
+  try {
+    await empleadoController.miPanel(req, res);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/jornada/iniciar', soloEmpleado, async (req, res, next) => {
+  try {
+    await empleadoController.iniciarJornada(req, res);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post(
+  '/jornada/finalizar',
+  [...soloEmpleado, exigeJson, validarCon(validarJornadaFin)],
+  async (req, res, next) => {
+    try {
+      await empleadoController.finalizarJornada(req, res);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+router.post(
+  '/encuesta-diaria',
+  [...soloEmpleado, exigeJson, validarCon(validarEncuestaDiaria)],
+  async (req, res, next) => {
+    try {
+      await empleadoController.encuestaDiaria(req, res);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+router.get('/encuesta-semanal/estado', soloEmpleado, async (req, res, next) => {
+  try {
+    await empleadoController.estadoEncuestaSemanal(req, res);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post(
+  '/encuesta-semanal',
+  [...soloEmpleado, exigeJson, validarCon(validarEncuestaSemanal)],
+  async (req, res, next) => {
+    try {
+      await empleadoController.encuestaSemanal(req, res);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+router.get('/umbrales', soloEmpleado, async (req, res, next) => {
+  try {
+    await empleadoController.obtenerUmbrales(req, res);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.put(
+  '/umbrales',
+  [...soloEmpleado, exigeJson, validarCon(validarUmbrales)],
+  async (req, res, next) => {
+    try {
+      await empleadoController.actualizarUmbrales(req, res);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
 
 module.exports = router;
