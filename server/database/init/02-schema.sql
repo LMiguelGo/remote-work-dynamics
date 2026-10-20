@@ -98,6 +98,7 @@ CREATE TABLE dimension_analyses (
   dimension          space_dimension NOT NULL,
   start_date         DATE NOT NULL,
   end_date           DATE NOT NULL,
+  frequency          VARCHAR NOT NULL, -- day, week, month (db_diagram_v3)
   normalized_score   NUMERIC NOT NULL,
   criticality_status criticality NOT NULL,
   calculated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -110,5 +111,7 @@ CREATE TABLE metric_analyses (
   metric_name           VARCHAR NOT NULL,
   raw_value             NUMERIC,
   normalized_value      NUMERIC,
+  start_date            DATE NOT NULL, -- db_diagram_v3
+  end_date              DATE NOT NULL, -- db_diagram_v3
   criticality           criticality NOT NULL
 );
