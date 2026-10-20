@@ -1,13 +1,12 @@
 {
-  "name": "prototipo-actividad6",
+  "name": "remote-work-dynamics-backend",
   "version": "0.1.0",
   "private": true,
-  "description": "Prototipo funcional inicial. Infraestructura Telematica para el Analisis de Dinamicas de Trabajo Remoto. Actividad 6, Unidad 3.",
+  "description": "Backend en capas sobre PostgreSQL y TimescaleDB. Infraestructura Telematica para el Analisis de Dinamicas de Trabajo Remoto.",
   "main": "src/server.js",
   "scripts": {
     "seed": "node scripts/seed.js",
     "start": "node src/server.js",
-    "simular": "node src/simulator.js",
     "test": "node --test"
   },
   "dependencies": {
