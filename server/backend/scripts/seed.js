@@ -1,0 +1,226 @@
+// Seed de catalogos y datos de demo para el prototipo.
+// Idempotente: trunca y vuelve a insertar en una transaccion.
+// Se ejecuta DENTRO del contenedor backend, que alcanza la base como database:5432.
+//   npm run seed   (o)   node scripts/seed.js
+
+const bcrypt = require('bcrypt');
+const { pool, query } = require('../src/db/pool');
+
+// Clave unica para TODOS los usuarios de demo. Solo para el prototipo local,
+// nunca una credencial real. No se imprime en consola en ningun momento.
+const CLAVE_DEMO = 'Demo.2026';
+
+// Tablas a vaciar antes de insertar. RESTART IDENTITY reinicia los seriales
+// y CASCADE arrastra las dependientes (events, alerts) para dejar todo limpio.
+const TABLAS = [
+  'roles',
+  'team_roles',
+  'teams',
+  'users',
+  'employee_profiles',
+  'data_sources',
+  'events',
+  'alerts',
+  'dimension_analyses',
+  'metric_analyses',
+];
+
+async function sembrar() {
+  const hash = await bcrypt.hash(CLAVE_DEMO, 10);
+
+  await query('BEGIN');
+  try {
+    await query(`TRUNCATE ${TABLAS.join(', ')} RESTART IDENTITY CASCADE;`);
+
+    // 1. roles base del sistema.
+    const roles = await query(
+      `INSERT INTO roles (name, description) VALUES
+         ($1, $2), ($3, $4), ($5, $6)
+       RETURNING id, name;`,
+      [
+        'gerente', 'Direccion general. Ve el tablero de lideres.',
+        'lider', 'Lidera un equipo de empleados y ve su analitica.',
+        'empleado', 'Persona monitoreada por las fuentes de datos.',
+      ],
+    );
+    const rolId = Object.fromEntries(roles.rows.map((r) => [r.name, r.id]));
+
+    // 2. team_roles con pesos SPACE que suman 1 por especialidad.
+    // Las dimensiones son S (satisfaccion/bienestar), P (performance/rendimiento),
+    // A (actividad), C (comunicacion/colaboracion) y E (eficiencia/flujo).
+    // El reparto refleja el enfasis de cada perfil:
+    //   backend    -> mas peso a rendimiento y eficiencia (trabajo de implementacion).
+    //   frontend   -> mas peso a actividad y comunicacion (iteracion visible y revision).
+    //   arquitecto -> mas peso a comunicacion y satisfaccion (coordinacion y vision).
+    //   analitica  -> mas peso a rendimiento y actividad (produccion de datos y modelos).
+    const teamRoles = await query(
+      `INSERT INTO team_roles (name, description, weights) VALUES
+         ($1, $2, $3),
+         ($4, $5, $6),
+         ($7, $8, $9),
+         ($10, $11, $12)
+       RETURNING id, name;`,
+      [
+        'backend', 'Desarrollo de servicios y datos.',
+        JSON.stringify({ S: 0.15, P: 0.30, A: 0.20, C: 0.15, E: 0.20 }),
+        'frontend', 'Desarrollo de interfaces.',
+        JSON.stringify({ S: 0.15, P: 0.20, A: 0.25, C: 0.25, E: 0.15 }),
+        'arquitecto', 'Diseno de la solucion y guia tecnica.',
+        JSON.stringify({ S: 0.25, P: 0.15, A: 0.15, C: 0.30, E: 0.15 }),
+        'analitica', 'Modelado y analisis de metricas.',
+        JSON.stringify({ S: 0.15, P: 0.30, A: 0.25, C: 0.15, E: 0.15 }),
+      ],
+    );
+    const teamRoleId = Object.fromEntries(teamRoles.rows.map((r) => [r.name, r.id]));
+
+    // 3. users con team_id en NULL por ahora (la FK circular se resuelve despues).
+    // El mismo hash de CLAVE_DEMO sirve para los cuatro ($1).
+    const users = await query(
+      `INSERT INTO users (username, password_hash, full_name, role_id, team_id) VALUES
+         ($2, $1, $3, $4, NULL),
+         ($5, $1, $6, $7, NULL),
+         ($8, $1, $9, $10, NULL),
+         ($11, $1, $12, $10, NULL)
+       RETURNING id, username;`,
+      [
+        hash,
+        'gerente1', 'Gabriela Mejia', rolId.gerente,
+        'lider1', 'Luis Ibarra', rolId.lider,
+        'empleado1', 'Elena Castro', rolId.empleado,
+        'empleado2', 'Esteban Ruiz',
+      ],
+    );
+    const userId = Object.fromEntries(users.rows.map((u) => [u.username, u.id]));
+
+    // 4. teams con leader_id en NULL por ahora. En el equipo de lideres el "lider"
+    // es el gerente, segun el modelo de dos niveles.
+    const teams = await query(
+      `INSERT INTO teams (name, description, team_type, leader_id) VALUES
+         ($1, $2, 'empleados', NULL),
+         ($3, $4, 'lideres', NULL)
+       RETURNING id, team_type;`,
+      [
+        'Equipo de Empleados', 'Personas monitoreadas por el prototipo.',
+        'Equipo de Lideres', 'Capa de direccion que agrupa a los lideres.',
+      ],
+    );
+    const teamId = Object.fromEntries(teams.rows.map((t) => [t.team_type, t.id]));
+
+    // 5. asignar team_id a los usuarios. Empleados y lider al equipo de empleados;
+    //    el gerente al equipo de lideres.
+    await query('UPDATE users SET team_id = $1 WHERE id = ANY($2::int[]);', [
+      teamId.empleados,
+      [userId.lider1, userId.empleado1, userId.empleado2],
+    ]);
+    await query('UPDATE users SET team_id = $1 WHERE id = $2;', [
+      teamId.lideres,
+      userId.gerente1,
+    ]);
+
+    // 6. asignar leader_id a los equipos. El lider encabeza el equipo de empleados;
+    //    el gerente encabeza el equipo de lideres.
+    await query('UPDATE teams SET leader_id = $1 WHERE id = $2;', [
+      userId.lider1,
+      teamId.empleados,
+    ]);
+    await query('UPDATE teams SET leader_id = $1 WHERE id = $2;', [
+      userId.gerente1,
+      teamId.lideres,
+    ]);
+
+    // 7. employee_profiles de los dos empleados (backend y frontend).
+    const jornada = {
+      zona_horaria: 'America/Bogota',
+      hora_inicio: '08:00',
+      hora_fin: '17:00',
+      descansos: [
+        { nombre: 'almuerzo', inicio: '12:00', fin: '13:00' },
+        { nombre: 'pausa_activa', inicio: '15:30', fin: '15:45' },
+      ],
+    };
+    const umbrales = {
+      temperatura_c: { min: 20, max: 26 },
+      humedad_pct: { min: 30, max: 60 },
+      ruido_db: { min: 0, max: 55 },
+    };
+    await query(
+      `INSERT INTO employee_profiles
+         (user_id, team_role_id, work_schedule, ambient_thresholds, capture_active) VALUES
+         ($1, $2, $3, $4, true),
+         ($5, $6, $7, $8, true);`,
+      [
+        userId.empleado1, teamRoleId.backend, JSON.stringify(jornada), JSON.stringify(umbrales),
+        userId.empleado2, teamRoleId.frontend, JSON.stringify(jornada), JSON.stringify(umbrales),
+      ],
+    );
+
+    // 8. data_sources: por cada empleado una fuente esp32 y una web_app.
+    await query(
+      `INSERT INTO data_sources (user_id, source_type, identifier, description, is_active) VALUES
+         ($1, 'esp32',   $2, 'Sensor ambiental del puesto.', true),
+         ($1, 'web_app', $3, 'Actividad en la aplicacion web.', true),
+         ($4, 'esp32',   $5, 'Sensor ambiental del puesto.', true),
+         ($4, 'web_app', $6, 'Actividad en la aplicacion web.', true);`,
+      [
+        userId.empleado1, 'esp32_empleado1', 'web_app_empleado1',
+        userId.empleado2, 'esp32_empleado2', 'web_app_empleado2',
+      ],
+    );
+
+    // 9. analitica de ejemplo para empleado1 (camino de lectura de la Tarea 6).
+    //    Una semana reciente, dimension S, frecuencia 'week'.
+    const inicio = '2026-10-12';
+    const fin = '2026-10-18';
+    const dim = await query(
+      `INSERT INTO dimension_analyses
+         (user_id, dimension, start_date, end_date, frequency, normalized_score, criticality_status)
+       VALUES ($1, 'S', $2, $3, 'week', 0.72, 'optimo')
+       RETURNING id;`,
+      [userId.empleado1, inicio, fin],
+    );
+    const dimId = dim.rows[0].id;
+
+    // Dos metricas que soportan la dimension S, con las columnas obligatorias llenas.
+    await query(
+      `INSERT INTO metric_analyses
+         (dimension_analysis_id, user_id, metric_name, raw_value, normalized_value, start_date, end_date, criticality)
+       VALUES
+         ($1, $2, 'horas_foco', 28.5, 0.76, $3, $4, 'optimo'),
+         ($1, $2, 'interrupciones', 12, 0.68, $3, $4, 'precaucion');`,
+      [dimId, userId.empleado1, inicio, fin],
+    );
+
+    await query('COMMIT');
+
+    // Resumen de conteos (sin imprimir la clave).
+    const conteos = await query(
+      `SELECT
+         (SELECT count(*) FROM roles)              AS roles,
+         (SELECT count(*) FROM team_roles)         AS team_roles,
+         (SELECT count(*) FROM teams)              AS teams,
+         (SELECT count(*) FROM users)              AS users,
+         (SELECT count(*) FROM employee_profiles)  AS employee_profiles,
+         (SELECT count(*) FROM data_sources)       AS data_sources,
+         (SELECT count(*) FROM dimension_analyses) AS dimension_analyses,
+         (SELECT count(*) FROM metric_analyses)    AS metric_analyses;`,
+    );
+
+    const usernames = users.rows.map((u) => u.username);
+    console.log('Seed completado. Usuarios creados:', usernames.join(', '));
+    console.log('Conteos:', conteos.rows[0]);
+  } catch (err) {
+    await query('ROLLBACK');
+    throw err;
+  }
+}
+
+sembrar()
+  .then(async () => {
+    await pool.end();
+    process.exit(0);
+  })
+  .catch(async (err) => {
+    console.error('Fallo el seed:', err.message);
+    await pool.end();
+    process.exit(1);
+  });

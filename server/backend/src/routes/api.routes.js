@@ -1,6 +1,7 @@
 const express = require('express');
 const { query } = require('../db/pool');
 const { construirSalud } = require('../controllers/salud.controller');
+const authController = require('../controllers/auth.controller');
 
 const router = express.Router();
 
@@ -25,6 +26,22 @@ router.get('/estado', async (req, res, next) => {
   try {
     const n = await contarUsuarios();
     res.json({ ok: true, usuarios: n, sembrado: n > 0 });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/login', async (req, res, next) => {
+  try {
+    await authController.iniciarSesion(req, res);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get('/usuarios-demo', async (req, res, next) => {
+  try {
+    await authController.usuariosDemo(req, res);
   } catch (err) {
     next(err);
   }
