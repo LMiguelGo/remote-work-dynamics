@@ -86,6 +86,42 @@ async function cerrarWorkingSession(pool, { time, id }, finISO) {
   return r.rows[0] || null;
 }
 
+// Para cada fuente de tipo 'network', su ultimo evento 'interruption' y su
+// ultimo 'qos_measurement' con su payload y time. Parte de data_sources (no de
+// events) con LEFT JOIN LATERAL para que una fuente network sin eventos aparezca
+// igual, con las columnas de evento en null. SQL parametrizado.
+async function ultimaRedPorFuente(pool) {
+  const r = await pool.query(
+    `SELECT ds.id AS source_id,
+            ds.identifier,
+            u.username,
+            u.full_name,
+            itr.time    AS interruption_time,
+            itr.payload AS interruption_payload,
+            qos.time    AS qos_time,
+            qos.payload AS qos_payload
+       FROM data_sources ds
+       JOIN users u ON u.id = ds.user_id
+       LEFT JOIN LATERAL (
+         SELECT e.time, e.payload
+           FROM events e
+          WHERE e.source_id = ds.id AND e.event_type = 'interruption'
+          ORDER BY e.time DESC
+          LIMIT 1
+       ) itr ON true
+       LEFT JOIN LATERAL (
+         SELECT e.time, e.payload
+           FROM events e
+          WHERE e.source_id = ds.id AND e.event_type = 'qos_measurement'
+          ORDER BY e.time DESC
+          LIMIT 1
+       ) qos ON true
+      WHERE ds.source_type = 'network'
+      ORDER BY ds.id`
+  );
+  return r.rows;
+}
+
 module.exports = {
   insertar,
   ultimasAmbiente,
@@ -93,4 +129,5 @@ module.exports = {
   workingSessionAbierta,
   abrirWorkingSession,
   cerrarWorkingSession,
+  ultimaRedPorFuente,
 };

@@ -106,15 +106,19 @@ async function sembrar() {
     );
     const teamId = Object.fromEntries(teams.rows.map((t) => [t.team_type, t.id]));
 
-    // 5. asignar team_id a los usuarios. Empleados y lider al equipo de empleados;
-    //    el gerente al equipo de lideres.
+    // 5. asignar team_id a los usuarios. Modelo de dos niveles:
+    //    - los empleados son miembros del equipo de empleados.
+    //    - los lideres son miembros del equipo de lideres (no del de empleados).
+    //    - el gerente tambien pertenece al equipo de lideres, que encabeza.
+    //    Cada equipo de empleados tiene como lider a uno de esos miembros del
+    //    equipo de lideres (se fija en el paso 6).
     await query('UPDATE users SET team_id = $1 WHERE id = ANY($2::int[]);', [
       teamId.empleados,
-      [userId.lider1, userId.empleado1, userId.empleado2],
+      [userId.empleado1, userId.empleado2],
     ]);
-    await query('UPDATE users SET team_id = $1 WHERE id = $2;', [
+    await query('UPDATE users SET team_id = $1 WHERE id = ANY($2::int[]);', [
       teamId.lideres,
-      userId.gerente1,
+      [userId.lider1, userId.gerente1],
     ]);
 
     // 6. asignar leader_id a los equipos. El lider encabeza el equipo de empleados;
@@ -167,6 +171,39 @@ async function sembrar() {
       ],
     );
 
+    // 8b. fuente 'network' por empleado (la alimenta un agente externo via /ingesta).
+    // RETURNING id para usar el source_id correcto en los eventos de ejemplo.
+    const red = await query(
+      `INSERT INTO data_sources (user_id, source_type, identifier, description, is_active) VALUES
+         ($1, 'network', $2, 'Sonda de red del puesto (QoS e interrupciones).', true),
+         ($3, 'network', $4, 'Sonda de red del puesto (QoS e interrupciones).', true)
+       RETURNING id, user_id;`,
+      [
+        userId.empleado1, 'network_empleado1',
+        userId.empleado2, 'network_empleado2',
+      ],
+    );
+    const redEmpleado1 = red.rows.find((r) => r.user_id === userId.empleado1).id;
+
+    // 8c. eventos de red recientes SOLO para empleado1, segun el contrato
+    // data_guide de la fuente network. Asi /operacion/conectividad muestra datos
+    // para empleado1 y deja a empleado2 en 'sin datos'.
+    await query(
+      `INSERT INTO events (time, source_id, event_type, payload) VALUES
+         (now(), $1, 'interruption',    $2::jsonb),
+         (now(), $1, 'qos_measurement', $3::jsonb);`,
+      [
+        redEmpleado1,
+        JSON.stringify({ interruption_duration_seconds: 45, interruption_count: 1 }),
+        JSON.stringify({
+          latency_ms: 24.5,
+          download_speed_mbps: 95.0,
+          upload_speed_mbps: 22.0,
+          packet_loss_percentage: 0.0,
+        }),
+      ],
+    );
+
     // 9. analitica de ejemplo para empleado1 (camino de lectura de la Tarea 6).
     //    Una semana reciente, dimension S, frecuencia 'week'.
     const inicio = '2026-10-12';
@@ -201,6 +238,7 @@ async function sembrar() {
          (SELECT count(*) FROM users)              AS users,
          (SELECT count(*) FROM employee_profiles)  AS employee_profiles,
          (SELECT count(*) FROM data_sources)       AS data_sources,
+         (SELECT count(*) FROM events)             AS events,
          (SELECT count(*) FROM dimension_analyses) AS dimension_analyses,
          (SELECT count(*) FROM metric_analyses)    AS metric_analyses;`,
     );

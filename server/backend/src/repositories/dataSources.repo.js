@@ -12,4 +12,26 @@ async function obtenerPorUsuarioYTipo(pool, userId, sourceType) {
   return r.rows[0] || null;
 }
 
-module.exports = { obtenerPorUsuarioYTipo };
+// Estado de TODAS las fuentes para el panel del gerente: fuente, su dueno
+// (username/full_name) y la ultima actividad (MAX(events.time)) de esa fuente.
+// LEFT JOIN a events para que una fuente sin eventos salga con ultima_actividad
+// en null. SQL parametrizado (aqui sin parametros, solo lectura agregada).
+async function estadoDeFuentes(pool) {
+  const r = await pool.query(
+    `SELECT ds.id,
+            ds.source_type,
+            ds.identifier,
+            ds.is_active,
+            u.username,
+            u.full_name,
+            MAX(e.time) AS ultima_actividad
+       FROM data_sources ds
+       JOIN users u ON u.id = ds.user_id
+       LEFT JOIN events e ON e.source_id = ds.id
+      GROUP BY ds.id, ds.source_type, ds.identifier, ds.is_active, u.username, u.full_name
+      ORDER BY ds.id`
+  );
+  return r.rows;
+}
+
+module.exports = { obtenerPorUsuarioYTipo, estadoDeFuentes };

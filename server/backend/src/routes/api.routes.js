@@ -5,6 +5,7 @@ const authController = require('../controllers/auth.controller');
 const empleadoController = require('../controllers/empleado.controller');
 const liderController = require('../controllers/lider.controller');
 const gerenteController = require('../controllers/gerente.controller');
+const operacionController = require('../controllers/operacion.controller');
 const { exigeSesion, exigeRol } = require('../middlewares/auth.middleware');
 const { exigeJson, validarCon } = require('../middlewares/validacion.middleware');
 const {
@@ -174,5 +175,41 @@ router.get(
     }
   }
 );
+
+// --- Rutas de operacion del gerente ---
+
+const soloGerente = [exigeSesion, exigeRol('gerente')];
+
+router.get('/operacion/dispositivos', soloGerente, async (req, res, next) => {
+  try {
+    await operacionController.dispositivos(req, res);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get('/operacion/conectividad', soloGerente, async (req, res, next) => {
+  try {
+    await operacionController.conectividad(req, res);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get('/operacion/config', soloGerente, async (req, res, next) => {
+  try {
+    await operacionController.obtenerConfig(req, res);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.put('/operacion/config', [...soloGerente, exigeJson], async (req, res, next) => {
+  try {
+    await operacionController.actualizarConfig(req, res);
+  } catch (err) {
+    next(err);
+  }
+});
 
 module.exports = router;
