@@ -8,5 +8,14 @@ module.exports = {
     'postgresql://postgres:postgres_password@database:5432/rwd_database',
   JWT_SECRET: process.env.JWT_SECRET || 'dev-secret-cambiar-en-produccion',
   MQTT_URL: process.env.MQTT_URL || 'mqtt://broker-mqtt:1883',
+  // Credenciales opcionales del broker. En la demo el broker es anonimo, asi que
+  // quedan undefined; el suscriptor solo las pasa si estan definidas.
+  MQTT_USERNAME: process.env.MQTT_USERNAME,
+  MQTT_PASSWORD: process.env.MQTT_PASSWORD,
+  // Topico donde el firmware ESP32 publica sus lecturas ambientales. Reutiliza el
+  // del prototipo anterior (src/mqtt.js) y queda configurable por entorno.
+  MQTT_TOPIC: process.env.MQTT_TOPIC || 'remote-work/esp32/ambiente',
+  // Token compartido para la ingesta HTTP de sensores. Defecto solo de desarrollo.
+  INGEST_TOKEN: process.env.INGEST_TOKEN || 'dev_ingest_token',
   PERIODO: process.env.PERIODO || periodoActual,
 };

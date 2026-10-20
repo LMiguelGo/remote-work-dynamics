@@ -118,10 +118,31 @@ function validarUmbrales(body) {
   return { ok: errores.length === 0, errores };
 }
 
+// Lectura cruda del firmware ESP32 para la ingesta (HTTP o MQTT). Exige
+// "dispositivo" presente (cadena no vacia) y temperatura/humedad/ruido_raw
+// numericos finitos. Lista blanca implicita: no se exige mas, pero los campos
+// obligatorios deben venir bien formados.
+function validarLecturaIngesta(body) {
+  const errores = [];
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return { ok: false, errores: ['El cuerpo debe ser un objeto JSON.'] };
+  }
+  if (typeof body.dispositivo !== 'string' || body.dispositivo.trim() === '') {
+    errores.push('dispositivo es obligatorio.');
+  }
+  for (const campo of ['temperatura', 'humedad', 'ruido_raw']) {
+    if (typeof body[campo] !== 'number' || !Number.isFinite(body[campo])) {
+      errores.push(`El campo "${campo}" debe ser numerico.`);
+    }
+  }
+  return { ok: errores.length === 0, errores };
+}
+
 module.exports = {
   enteroEnRango,
   validarEncuestaDiaria,
   validarEncuestaSemanal,
   validarJornadaFin,
   validarUmbrales,
+  validarLecturaIngesta,
 };

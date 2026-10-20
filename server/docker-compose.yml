@@ -24,9 +24,12 @@ services:
     environment:
       - PORT=3000
       - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres_password}@database:5432/${POSTGRES_DB:-rwd_database}
+      - MQTT_URL=mqtt://broker-mqtt:1883
+      - INGEST_TOKEN=${INGEST_TOKEN:-dev_ingest_token}
     restart: unless-stopped
     depends_on:
       - database
+      - broker-mqtt
     networks:
       - app-network
 

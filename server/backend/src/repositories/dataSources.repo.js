@@ -34,4 +34,17 @@ async function estadoDeFuentes(pool) {
   return r.rows;
 }
 
-module.exports = { obtenerPorUsuarioYTipo, estadoDeFuentes };
+// Busca una fuente por su identifier unico (p. ej. 'esp32_empleado1'). La usa la
+// ingesta para resolver a que fuente pertenece una lectura cruda del firmware.
+async function buscarPorIdentifier(pool, identifier) {
+  const r = await pool.query(
+    `SELECT id, user_id, source_type, identifier, is_active
+       FROM data_sources
+      WHERE identifier = $1
+      LIMIT 1`,
+    [identifier]
+  );
+  return r.rows[0] || null;
+}
+
+module.exports = { obtenerPorUsuarioYTipo, estadoDeFuentes, buscarPorIdentifier };
