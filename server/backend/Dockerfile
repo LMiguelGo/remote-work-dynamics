@@ -7,8 +7,6 @@ RUN npm install
 
 COPY . .
 
-RUN npm run seed
-
 EXPOSE 3000
 
 CMD ["npm", "start"]
