@@ -154,6 +154,15 @@ router.get('/equipo', [exigeSesion, exigeRol('lider')], async (req, res, next) =
   }
 });
 
+// Conectividad de solo lectura de los integrantes del lider, acotada a su equipo.
+router.get('/equipo/conectividad', [exigeSesion, exigeRol('lider')], async (req, res, next) => {
+  try {
+    await liderController.conectividadEquipo(req, res);
+  } catch (err) {
+    next(err);
+  }
+});
+
 // --- Rutas del gerente ---
 
 router.get('/organizacion', [exigeSesion, exigeRol('gerente')], async (req, res, next) => {

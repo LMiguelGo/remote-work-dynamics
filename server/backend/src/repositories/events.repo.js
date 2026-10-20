@@ -122,6 +122,42 @@ async function ultimaRedPorFuente(pool) {
   return r.rows;
 }
 
+// Igual que ultimaRedPorFuente pero acotada a un conjunto de usuarios (los
+// integrantes de un lider), para la vista de conectividad del lider.
+async function ultimaRedPorFuenteDeUsuarios(pool, userIds) {
+  const r = await pool.query(
+    `SELECT ds.id AS source_id,
+            ds.identifier,
+            u.username,
+            u.full_name,
+            itr.time    AS interruption_time,
+            itr.payload AS interruption_payload,
+            qos.time    AS qos_time,
+            qos.payload AS qos_payload
+       FROM data_sources ds
+       JOIN users u ON u.id = ds.user_id
+       LEFT JOIN LATERAL (
+         SELECT e.time, e.payload
+           FROM events e
+          WHERE e.source_id = ds.id AND e.event_type = 'interruption'
+          ORDER BY e.time DESC
+          LIMIT 1
+       ) itr ON true
+       LEFT JOIN LATERAL (
+         SELECT e.time, e.payload
+           FROM events e
+          WHERE e.source_id = ds.id AND e.event_type = 'qos_measurement'
+          ORDER BY e.time DESC
+          LIMIT 1
+       ) qos ON true
+      WHERE ds.source_type = 'network'
+        AND ds.user_id = ANY($1)
+      ORDER BY ds.id`,
+    [userIds]
+  );
+  return r.rows;
+}
+
 module.exports = {
   insertar,
   ultimasAmbiente,
@@ -130,4 +166,5 @@ module.exports = {
   abrirWorkingSession,
   cerrarWorkingSession,
   ultimaRedPorFuente,
+  ultimaRedPorFuenteDeUsuarios,
 };
