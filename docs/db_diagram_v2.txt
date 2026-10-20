@@ -12,14 +12,12 @@ Enum team_type {
 }
 
 Enum source_type {
+  web_app
   esp32
   github
   jira
-  slack
-  daily_survey
-  sonarqube
   network
-  working_hours
+  sonarqube
 }
 
 Enum space_dimension {
