@@ -18,4 +18,9 @@ module.exports = {
   // Token compartido para la ingesta HTTP de sensores. Defecto solo de desarrollo.
   INGEST_TOKEN: process.env.INGEST_TOKEN || 'dev_ingest_token',
   PERIODO: process.env.PERIODO || periodoActual,
+  // Origenes permitidos para CORS (lista separada por comas). El defecto cubre el
+  // nginx del frontend (localhost:80) y el dev-server de Vite (5173). En
+  // produccion se fija por entorno para no quedar abierto a cualquier origen.
+  CORS_ORIGIN:
+    process.env.CORS_ORIGIN || 'http://localhost,http://localhost:80,http://localhost:5173',
 };

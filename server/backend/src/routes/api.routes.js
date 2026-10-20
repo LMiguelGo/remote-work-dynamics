@@ -8,6 +8,7 @@ const gerenteController = require('../controllers/gerente.controller');
 const operacionController = require('../controllers/operacion.controller');
 const { exigeSesion, exigeRol } = require('../middlewares/auth.middleware');
 const { exigeJson, validarCon } = require('../middlewares/validacion.middleware');
+const { crearLimitador } = require('../middlewares/rateLimit.middleware');
 const {
   validarEncuestaDiaria,
   validarEncuestaSemanal,
@@ -19,6 +20,13 @@ const router = express.Router();
 
 // Todas las rutas de empleado exigen sesion con rol empleado.
 const soloEmpleado = [exigeSesion, exigeRol('empleado')];
+
+// Anti fuerza bruta en el login (OWASP ASVS): 10 intentos por IP cada 15 min.
+const limitadorLogin = crearLimitador({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  mensaje: 'Demasiados intentos de inicio de sesion. Espere unos minutos e intente de nuevo.',
+});
 
 async function contarUsuarios() {
   const r = await query('SELECT count(*)::int AS n FROM users');
@@ -46,7 +54,7 @@ router.get('/estado', async (req, res, next) => {
   }
 });
 
-router.post('/login', async (req, res, next) => {
+router.post('/login', limitadorLogin, async (req, res, next) => {
   try {
     await authController.iniciarSesion(req, res);
   } catch (err) {
