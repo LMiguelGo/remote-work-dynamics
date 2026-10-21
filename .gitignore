@@ -25,3 +25,7 @@ node_modules/
 
 # Credenciales de la demo generadas por el seed (claves en claro, nunca al repo).
 .seed-credenciales.txt
+
+# Ajuste local de Docker Compose (por ejemplo para el modo produccion). Es propio
+# de cada entorno, no se sube al repositorio.
+docker-compose.override.yml
