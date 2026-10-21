@@ -229,7 +229,8 @@ async function sembrar() {
         }),
       ],
     );
-
+    // 8e. fuentes por persona de empleado1: github (identifier = login) y jira
+    // (identifier = accountId completo). Las usan /api/ingesta/github y /ingesta/jira.
     await query(
       `INSERT INTO data_sources (user_id, source_type, identifier, description, is_active) VALUES
          ($1, 'github', $2, 'Cuenta GitHub.', true),

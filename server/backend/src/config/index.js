@@ -5,6 +5,7 @@ const periodoActual = `${ahora.getFullYear()}-${String(ahora.getMonth() + 1).pad
 // (ver la guarda de abajo). No son secretos reales y no deben usarse desplegados.
 const JWT_SECRET_DEV = 'dev-secret-cambiar-en-produccion';
 const INGEST_TOKEN_DEV = 'dev_ingest_token';
+const GITHUB_WEBHOOK_SECRET_DEV = 'dev_github_secret';
 
 const config = {
   NODE_ENV: process.env.NODE_ENV || 'development',
@@ -31,7 +32,7 @@ const config = {
   // produccion se fija por entorno para no quedar abierto a cualquier origen.
   CORS_ORIGIN:
     process.env.CORS_ORIGIN || 'http://localhost,http://localhost:80,http://localhost:5173',
-  GITHUB_WEBHOOK_SECRET: process.env.GITHUB_WEBHOOK_SECRET || 'dev_github_secret',
+  GITHUB_WEBHOOK_SECRET: process.env.GITHUB_WEBHOOK_SECRET || GITHUB_WEBHOOK_SECRET_DEV,
   GITHUB_TOKEN: process.env.GITHUB_TOKEN,
   JIRA_STORY_POINTS_FIELD: process.env.JIRA_STORY_POINTS_FIELD || 'customfield_10016',
 };
@@ -46,6 +47,9 @@ if (config.NODE_ENV === 'production') {
   const faltantes = [];
   if (!process.env.JWT_SECRET || config.JWT_SECRET === JWT_SECRET_DEV) {
     faltantes.push('JWT_SECRET');
+  }
+  if (!process.env.GITHUB_WEBHOOK_SECRET || config.GITHUB_WEBHOOK_SECRET === GITHUB_WEBHOOK_SECRET_DEV) {
+    faltantes.push('GITHUB_WEBHOOK_SECRET');
   }
   if (!process.env.INGEST_TOKEN || config.INGEST_TOKEN === INGEST_TOKEN_DEV) {
     faltantes.push('INGEST_TOKEN');
