@@ -6,7 +6,7 @@ from sqlalchemy import (JSON, BigInteger, Boolean, Column, Date, DateTime, Enum,
                         create_engine, insert, select)
 from sqlalchemy.engine import URL
 
-from derivadas import Evento
+from derivadas import TZ_LOCAL, Evento
 from etl_procesador import METRICA_DIMENSION, RATING_SONAR_NUMERICO, consolidar_dimension
 
 # El esquema lo crea el contenedor de DB (ver rwd_database.png); aquí solo se describen las tablas para leer/escribir.
@@ -64,7 +64,7 @@ data_sources = Table(
 events = Table(
     "events", metadata,
     Column("id", BigInteger, primary_key=True),
-    Column("time", DateTime),
+    Column("time", DateTime(timezone=True)),  # TIMESTAMPTZ en el esquema real
     Column("source_id", Integer),
     Column("event_type", String),
     Column("payload", JSON),  # jsonb en PostgreSQL
@@ -107,7 +107,7 @@ def guardar_analisis(usuario_id: int, dimension: str, fecha_inicio: date, fecha_
             end_date=fecha_fin,
             normalized_score=resumen["puntaje_normalizado"],
             criticality_status=ENUM_CRITICIDAD[resumen["estado_criticidad"]],
-            calculated_at=datetime.now(),
+            calculated_at=datetime.now(TZ_LOCAL),
             frequency=FRECUENCIA_DB[frecuencia],
         )).inserted_primary_key[0]
 
@@ -211,7 +211,11 @@ def existe_analisis(usuario_id: int, fecha_inicio: date, fecha_fin: date, frecue
 def cargar_eventos(desde: datetime, hasta: datetime, usuario_id: int | None = None) -> dict[int, list[Evento]]:
     """Eventos con `desde <= time < hasta`, agrupados por usuario: {usuario_id: [Evento, ...]} en orden cronológico.
     El usuario sale de events.source_id -> data_sources.user_id. Sin `usuario_id` trae a todos.
-    Para métricas que miran hacia atrás (tickets, PRs) el llamador debe pasar una ventana que incluya los eventos previos."""
+    Para métricas que miran hacia atrás (tickets, PRs) el llamador debe pasar una ventana que incluya los eventos previos.
+    `desde` y `hasta` sin zona son hora de Colombia. events.time es TIMESTAMPTZ: sin la zona explícita PostgreSQL los
+    interpretaría en la zona de su sesión (normalmente UTC) y las ventanas diarias se correrían 5 horas."""
+    desde = desde if desde.tzinfo else desde.replace(tzinfo=TZ_LOCAL)
+    hasta = hasta if hasta.tzinfo else hasta.replace(tzinfo=TZ_LOCAL)
     stmt = select(
         data_sources.c.user_id, data_sources.c.source_type, events.c.event_type, events.c.time, events.c.payload,
     ).join(data_sources, events.c.source_id == data_sources.c.id
