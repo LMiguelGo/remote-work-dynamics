@@ -12,7 +12,7 @@ function exigeSesion(req, res, next) {
   const token = cabecera.slice('Bearer '.length).trim();
   try {
     const payload = jwt.verify(token, config.JWT_SECRET);
-    req.usuario = { id: payload.id, rol: payload.rol };
+    req.usuario = { id: payload.id, rol: payload.rol, mc: payload.mc === true };
     return next();
   } catch (err) {
     return res.status(401).json({ error: 'Sesión inválida' });
@@ -29,4 +29,17 @@ function exigeRol(rol) {
   };
 }
 
-module.exports = { exigeSesion, exigeRol };
+// Bloquea el uso normal mientras el usuario tenga una clave temporal sin cambiar.
+// Se aplica a las rutas de negocio, NO a la de cambio de clave. Responde 403 con
+// un codigo para que el frontend lleve a la pantalla de cambio obligatorio.
+function exigeClaveActualizada(req, res, next) {
+  if (req.usuario && req.usuario.mc === true) {
+    return res.status(403).json({
+      error: 'Debe cambiar su clave temporal antes de continuar',
+      codigo: 'debe_cambiar_clave',
+    });
+  }
+  return next();
+}
+
+module.exports = { exigeSesion, exigeRol, exigeClaveActualizada };

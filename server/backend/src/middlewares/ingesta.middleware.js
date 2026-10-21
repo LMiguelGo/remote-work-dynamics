@@ -21,10 +21,13 @@ function tokensCoinciden(recibido, esperado) {
   return crypto.timingSafeEqual(a, b);
 }
 
-// Lee el token del header dedicado o del Authorization: Bearer.
+// Lee el token del header dedicado o del Authorization: Bearer. Se aceptan dos
+// nombres de header: 'x-ingest-token' (ESP32) y 'x-ingesta-token' (el que supuso
+// el conector de Jira de Karol), para no forzar coordinacion extra. Los headers
+// HTTP no distinguen mayusculas, asi que llegan siempre en minuscula.
 function extraerToken(req) {
   const headers = req.headers || {};
-  const directo = headers['x-ingest-token'];
+  const directo = headers['x-ingest-token'] || headers['x-ingesta-token'];
   if (typeof directo === 'string' && directo.length > 0) {
     return directo;
   }

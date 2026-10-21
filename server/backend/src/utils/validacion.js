@@ -138,6 +138,36 @@ function validarLecturaIngesta(body) {
   return { ok: errores.length === 0, errores };
 }
 
+// Evento de ingesta generico del contrato del equipo (Jira, GitHub, SonarQube y
+// cualquier conector). Forma: { identifier, event_type, time?, payload }.
+//  - identifier: cadena no vacia, resuelve la fila de data_sources.
+//  - event_type: cadena no vacia (p. ej. issue_created, issue_updated).
+//  - time: opcional; si viene, fecha ISO 8601 valida. Si falta, la base pone now().
+//  - payload: objeto (se guarda como JSONB tal cual).
+// No se exige una forma fija del payload: cada fuente trae la suya y el backend la
+// persiste sin interpretarla. La semantica la aplica la capa de analitica.
+function validarEventoIngesta(body) {
+  const errores = [];
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return { ok: false, errores: ['El cuerpo debe ser un objeto JSON.'] };
+  }
+  if (typeof body.identifier !== 'string' || body.identifier.trim() === '') {
+    errores.push('identifier es obligatorio.');
+  }
+  if (typeof body.event_type !== 'string' || body.event_type.trim() === '') {
+    errores.push('event_type es obligatorio.');
+  }
+  if (body.time !== undefined && body.time !== null) {
+    if (typeof body.time !== 'string' || Number.isNaN(new Date(body.time).getTime())) {
+      errores.push('time debe ser una fecha ISO 8601 valida.');
+    }
+  }
+  if (!body.payload || typeof body.payload !== 'object' || Array.isArray(body.payload)) {
+    errores.push('payload debe ser un objeto.');
+  }
+  return { ok: errores.length === 0, errores };
+}
+
 module.exports = {
   enteroEnRango,
   validarEncuestaDiaria,
@@ -145,4 +175,5 @@ module.exports = {
   validarJornadaFin,
   validarUmbrales,
   validarLecturaIngesta,
+  validarEventoIngesta,
 };

@@ -6,7 +6,7 @@ const empleadoController = require('../controllers/empleado.controller');
 const liderController = require('../controllers/lider.controller');
 const gerenteController = require('../controllers/gerente.controller');
 const operacionController = require('../controllers/operacion.controller');
-const { exigeSesion, exigeRol } = require('../middlewares/auth.middleware');
+const { exigeSesion, exigeRol, exigeClaveActualizada } = require('../middlewares/auth.middleware');
 const { exigeJson, validarCon } = require('../middlewares/validacion.middleware');
 const { crearLimitador } = require('../middlewares/rateLimit.middleware');
 const {
@@ -18,8 +18,11 @@ const {
 
 const router = express.Router();
 
-// Todas las rutas de empleado exigen sesion con rol empleado.
-const soloEmpleado = [exigeSesion, exigeRol('empleado')];
+// Guardas por rol. Todas exigen sesion y que la clave temporal ya se haya
+// cambiado antes de usar cualquier ruta de negocio.
+const soloEmpleado = [exigeSesion, exigeClaveActualizada, exigeRol('empleado')];
+const soloLider = [exigeSesion, exigeClaveActualizada, exigeRol('lider')];
+const soloGerente = [exigeSesion, exigeClaveActualizada, exigeRol('gerente')];
 
 // Anti fuerza bruta en el login (OWASP ASVS): 10 intentos por IP cada 15 min.
 const limitadorLogin = crearLimitador({
@@ -65,6 +68,36 @@ router.post('/login', limitadorLogin, async (req, res, next) => {
 router.get('/usuarios-demo', async (req, res, next) => {
   try {
     await authController.usuariosDemo(req, res);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Cambio de clave del usuario en sesion. No lleva exigeClaveActualizada: es
+// justamente la via para salir del estado de clave temporal.
+router.post('/cambiar-clave', [exigeSesion, exigeJson], async (req, res, next) => {
+  try {
+    await authController.cambiarClave(req, res);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// --- Provision de cuentas por el administrador del sistema ---
+
+const soloAdmin = [exigeSesion, exigeClaveActualizada, exigeRol('admin')];
+
+router.post('/usuarios', [...soloAdmin, exigeJson], async (req, res, next) => {
+  try {
+    await authController.crearUsuario(req, res);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/usuarios/:id/restablecer-clave', soloAdmin, async (req, res, next) => {
+  try {
+    await authController.restablecerClave(req, res);
   } catch (err) {
     next(err);
   }
@@ -154,7 +187,7 @@ router.put(
 
 // --- Rutas del lider ---
 
-router.get('/equipo', [exigeSesion, exigeRol('lider')], async (req, res, next) => {
+router.get('/equipo', soloLider, async (req, res, next) => {
   try {
     await liderController.miEquipo(req, res);
   } catch (err) {
@@ -163,7 +196,7 @@ router.get('/equipo', [exigeSesion, exigeRol('lider')], async (req, res, next) =
 });
 
 // Conectividad de solo lectura de los integrantes del lider, acotada a su equipo.
-router.get('/equipo/conectividad', [exigeSesion, exigeRol('lider')], async (req, res, next) => {
+router.get('/equipo/conectividad', soloLider, async (req, res, next) => {
   try {
     await liderController.conectividadEquipo(req, res);
   } catch (err) {
@@ -173,7 +206,7 @@ router.get('/equipo/conectividad', [exigeSesion, exigeRol('lider')], async (req,
 
 // --- Rutas del gerente ---
 
-router.get('/organizacion', [exigeSesion, exigeRol('gerente')], async (req, res, next) => {
+router.get('/organizacion', soloGerente, async (req, res, next) => {
   try {
     await gerenteController.organizacion(req, res);
   } catch (err) {
@@ -183,7 +216,7 @@ router.get('/organizacion', [exigeSesion, exigeRol('gerente')], async (req, res,
 
 router.get(
   '/organizacion/equipo/:liderId',
-  [exigeSesion, exigeRol('gerente')],
+  soloGerente,
   async (req, res, next) => {
     try {
       await gerenteController.equipoDeLider(req, res);
@@ -194,8 +227,6 @@ router.get(
 );
 
 // --- Rutas de operacion del gerente ---
-
-const soloGerente = [exigeSesion, exigeRol('gerente')];
 
 router.get('/operacion/dispositivos', soloGerente, async (req, res, next) => {
   try {
