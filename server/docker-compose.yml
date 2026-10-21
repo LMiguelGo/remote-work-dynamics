@@ -28,6 +28,9 @@ services:
       - MQTT_URL=mqtt://broker-mqtt:1883
       - INGEST_TOKEN=${INGEST_TOKEN:-dev_ingest_token}
       - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost,http://localhost:80,http://localhost:5173}
+      - GITHUB_WEBHOOK_SECRET=${GITHUB_WEBHOOK_SECRET:-dev_github_secret}
+      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+      - JIRA_STORY_POINTS_FIELD=${JIRA_STORY_POINTS_FIELD:-customfield_10016}
     restart: unless-stopped
     depends_on:
       - database

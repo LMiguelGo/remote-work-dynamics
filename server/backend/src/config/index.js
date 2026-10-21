@@ -23,4 +23,7 @@ module.exports = {
   // produccion se fija por entorno para no quedar abierto a cualquier origen.
   CORS_ORIGIN:
     process.env.CORS_ORIGIN || 'http://localhost,http://localhost:80,http://localhost:5173',
+  GITHUB_WEBHOOK_SECRET: process.env.GITHUB_WEBHOOK_SECRET || 'dev_github_secret',
+  GITHUB_TOKEN: process.env.GITHUB_TOKEN,
+  JIRA_STORY_POINTS_FIELD: process.env.JIRA_STORY_POINTS_FIELD || 'customfield_10016',
 };

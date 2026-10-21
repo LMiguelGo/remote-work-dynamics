@@ -13,3 +13,6 @@ env/
 *.db
 *.sqlite3
 server/api/datos/*.db
+# Secretos locales
+.env
+server/.env

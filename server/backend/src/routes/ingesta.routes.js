@@ -3,6 +3,7 @@
 // Cadena: exigeTokenIngesta -> exigeJson -> validarCon(validarLecturaIngesta) -> controlador.
 // Ruta efectiva (montada en /api/ingesta): POST /api/ingesta/esp32
 
+const { exigeFirmaGithub } = require('../middlewares/githubFirma.middleware');
 const express = require('express');
 const { exigeTokenIngesta } = require('../middlewares/ingesta.middleware');
 const { exigeJson, validarCon } = require('../middlewares/validacion.middleware');
@@ -32,5 +33,21 @@ router.post(
     }
   }
 );
+
+router.post('/github', [limitadorIngesta, exigeFirmaGithub], async (req, res, next) => {
+  try {
+    await ingestController.ingestarGithub(req, res);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/jira', [limitadorIngesta, exigeTokenIngesta, exigeJson], async (req, res, next) => {
+  try {
+    await ingestController.ingestarJira(req, res);
+  } catch (err) {
+    next(err);
+  }
+});
 
 module.exports = router;

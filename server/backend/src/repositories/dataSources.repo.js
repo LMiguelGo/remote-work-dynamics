@@ -47,4 +47,15 @@ async function buscarPorIdentifier(pool, identifier) {
   return r.rows[0] || null;
 }
 
-module.exports = { obtenerPorUsuarioYTipo, estadoDeFuentes, buscarPorIdentifier };
+async function buscarPorIdentifierYTipo(pool, identifier, sourceType) {
+  const r = await pool.query(
+    `SELECT id, user_id, source_type, identifier, is_active
+       FROM data_sources
+      WHERE identifier = $1 AND source_type = $2
+      LIMIT 1`,
+    [identifier, sourceType]
+  );
+  return r.rows[0] || null;
+}
+
+module.exports = { obtenerPorUsuarioYTipo, estadoDeFuentes, buscarPorIdentifier, buscarPorIdentifierYTipo };

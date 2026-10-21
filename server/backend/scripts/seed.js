@@ -204,6 +204,13 @@ async function sembrar() {
       ],
     );
 
+    await query(
+      `INSERT INTO data_sources (user_id, source_type, identifier, description, is_active) VALUES
+         ($1, 'github', $2, 'Cuenta GitHub.', true),
+         ($1, 'jira',   $3, 'Cuenta Jira.', true);`,
+      [userId.empleado1, 'BriyithNarvaez04', '712020:8437f9f2-9c48-4ebc-83ff-eb44cb5a597a']
+    );
+
     // 9. analitica de ejemplo para empleado1 (camino de lectura de la Tarea 6).
     //    Una semana reciente, dimension S, frecuencia 'week'.
     const inicio = '2026-10-12';
