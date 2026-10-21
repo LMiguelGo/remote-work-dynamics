@@ -13,6 +13,19 @@ env/
 *.db
 *.sqlite3
 server/api/datos/*.db
-# Secretos locales
+
+# Node
+node_modules/
+
+# Variables de entorno con secretos (nunca al repositorio).
+# .env.example si se versiona, es la plantilla sin secretos.
 .env
-server/.env
+.env.*
+!.env.example
+
+# Credenciales de la demo generadas por el seed (claves en claro, nunca al repo).
+.seed-credenciales.txt
+
+# Ajuste local de Docker Compose (por ejemplo para el modo produccion). Es propio
+# de cada entorno, no se sube al repositorio.
+docker-compose.override.yml

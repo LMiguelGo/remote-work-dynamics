@@ -4,11 +4,26 @@
 //   npm run seed   (o)   node scripts/seed.js
 
 const bcrypt = require('bcrypt');
+const fs = require('fs');
+const path = require('path');
 const { pool, query } = require('../src/db/pool');
+const { generarClaveTemporal } = require('../src/utils/password');
 
-// Clave unica para TODOS los usuarios de demo. Solo para el prototipo local,
-// nunca una credencial real. No se imprime en consola en ningun momento.
-const CLAVE_DEMO = 'Demo.2026';
+// Usuarios de demo. Cada uno con su propia clave aleatoria, no compartida, que se
+// genera al sembrar. Las claves NO se imprimen ni van al repo: se escriben en un
+// archivo local ignorado por git (.seed-credenciales.txt) para poder entrar en la
+// demo. Todos quedan como cuentas ya establecidas (must_change_password en false);
+// el flujo de clave temporal con cambio obligatorio se prueba creando un usuario
+// nuevo desde el administrador del sistema (admin1).
+const USUARIOS_DEMO = [
+  { username: 'admin1',    full_name: 'Administrador del sistema', rol: 'admin' },
+  { username: 'gerente1',  full_name: 'Gabriela Mejia',           rol: 'gerente' },
+  { username: 'lider1',    full_name: 'Luis Ibarra',              rol: 'lider' },
+  { username: 'empleado1', full_name: 'Elena Castro',             rol: 'empleado' },
+  { username: 'empleado2', full_name: 'Esteban Ruiz',             rol: 'empleado' },
+];
+
+const ARCHIVO_CREDENCIALES = path.join(__dirname, '..', '.seed-credenciales.txt');
 
 // Tablas a vaciar antes de insertar. RESTART IDENTITY reinicia los seriales
 // y CASCADE arrastra las dependientes (events, alerts) para dejar todo limpio.
@@ -26,18 +41,18 @@ const TABLAS = [
 ];
 
 async function sembrar() {
-  const hash = await bcrypt.hash(CLAVE_DEMO, 10);
-
   await query('BEGIN');
   try {
     await query(`TRUNCATE ${TABLAS.join(', ')} RESTART IDENTITY CASCADE;`);
 
-    // 1. roles base del sistema.
+    // 1. roles base del sistema. admin es el administrador del sistema: crea las
+    //    cuentas y asigna roles, distinto del gerente, que es direccion de negocio.
     const roles = await query(
       `INSERT INTO roles (name, description) VALUES
-         ($1, $2), ($3, $4), ($5, $6)
+         ($1, $2), ($3, $4), ($5, $6), ($7, $8)
        RETURNING id, name;`,
       [
+        'admin', 'Administrador del sistema. Crea cuentas y asigna roles.',
         'gerente', 'Direccion general. Ve el tablero de lideres.',
         'lider', 'Lidera un equipo de empleados y ve su analitica.',
         'empleado', 'Persona monitoreada por las fuentes de datos.',
@@ -74,23 +89,23 @@ async function sembrar() {
     const teamRoleId = Object.fromEntries(teamRoles.rows.map((r) => [r.name, r.id]));
 
     // 3. users con team_id en NULL por ahora (la FK circular se resuelve despues).
-    // El mismo hash de CLAVE_DEMO sirve para los cuatro ($1).
-    const users = await query(
-      `INSERT INTO users (username, password_hash, full_name, role_id, team_id) VALUES
-         ($2, $1, $3, $4, NULL),
-         ($5, $1, $6, $7, NULL),
-         ($8, $1, $9, $10, NULL),
-         ($11, $1, $12, $10, NULL)
-       RETURNING id, username;`,
-      [
-        hash,
-        'gerente1', 'Gabriela Mejia', rolId.gerente,
-        'lider1', 'Luis Ibarra', rolId.lider,
-        'empleado1', 'Elena Castro', rolId.empleado,
-        'empleado2', 'Esteban Ruiz',
-      ],
-    );
-    const userId = Object.fromEntries(users.rows.map((u) => [u.username, u.id]));
+    //    Cada usuario con su clave propia aleatoria y su hash bcrypt. Quedan como
+    //    cuentas ya establecidas (must_change_password en false).
+    const credenciales = [];
+    const filasUsuarios = [];
+    for (const u of USUARIOS_DEMO) {
+      const clave = generarClaveTemporal();
+      const passwordHash = await bcrypt.hash(clave, 10);
+      const r = await query(
+        `INSERT INTO users (username, password_hash, full_name, role_id, team_id, must_change_password)
+         VALUES ($1, $2, $3, $4, NULL, false)
+         RETURNING id, username;`,
+        [u.username, passwordHash, u.full_name, rolId[u.rol]],
+      );
+      filasUsuarios.push(r.rows[0]);
+      credenciales.push({ username: u.username, rol: u.rol, clave });
+    }
+    const userId = Object.fromEntries(filasUsuarios.map((u) => [u.username, u.id]));
 
     // 4. teams con leader_id en NULL por ahora. En el equipo de lideres el "lider"
     // es el gerente, segun el modelo de dos niveles.
@@ -185,6 +200,17 @@ async function sembrar() {
     );
     const redEmpleado1 = red.rows.find((r) => r.user_id === userId.empleado1).id;
 
+    // 8d. fuente 'jira' a nivel de proyecto para la ingesta del conector de Karol.
+    // identifier = 'SCRUM' (la clave del proyecto en Jira). Los eventos de Jira son
+    // del proyecto, no de una persona, pero data_sources exige user_id; se ancla
+    // PROVISIONAL al gerente (no se mide por SPACE) mientras Martin y Karol deciden
+    // como mapear el responsable de cada incidencia a un user_id.
+    await query(
+      `INSERT INTO data_sources (user_id, source_type, identifier, description, is_active) VALUES
+         ($1, 'jira', $2, 'Proyecto Jira SCRUM (incidencias e historias). Fuente a nivel de proyecto.', true);`,
+      [userId.gerente1, 'SCRUM'],
+    );
+
     // 8c. eventos de red recientes SOLO para empleado1, segun el contrato
     // data_guide de la fuente network. Asi /operacion/conectividad muestra datos
     // para empleado1 y deja a empleado2 en 'sin datos'.
@@ -250,8 +276,20 @@ async function sembrar() {
          (SELECT count(*) FROM metric_analyses)    AS metric_analyses;`,
     );
 
-    const usernames = users.rows.map((u) => u.username);
+    // Credenciales de la demo a un archivo local ignorado por git. Nunca a consola
+    // ni al repo. Es solo para entrar en la demo; en produccion no existe este paso.
+    const lineas = [
+      '# Credenciales de la demo. Generadas por el seed. NO subir al repositorio.',
+      '# Cada clave es distinta por usuario. Regeneradas en cada corrida del seed.',
+      '',
+      ...credenciales.map((c) => `${c.username} (${c.rol}): ${c.clave}`),
+      '',
+    ];
+    fs.writeFileSync(ARCHIVO_CREDENCIALES, lineas.join('\n'), { encoding: 'utf8' });
+
+    const usernames = filasUsuarios.map((u) => u.username);
     console.log('Seed completado. Usuarios creados:', usernames.join(', '));
+    console.log('Credenciales escritas en:', ARCHIVO_CREDENCIALES);
     console.log('Conteos:', conteos.rows[0]);
   } catch (err) {
     await query('ROLLBACK');

@@ -7,7 +7,7 @@ const { exigeFirmaGithub } = require('../middlewares/githubFirma.middleware');
 const express = require('express');
 const { exigeTokenIngesta } = require('../middlewares/ingesta.middleware');
 const { exigeJson, validarCon } = require('../middlewares/validacion.middleware');
-const { validarLecturaIngesta } = require('../utils/validacion');
+const { validarLecturaIngesta, validarEventoIngesta } = require('../utils/validacion');
 const { crearLimitador } = require('../middlewares/rateLimit.middleware');
 const ingestController = require('../controllers/ingest.controller');
 
@@ -34,6 +34,23 @@ router.post(
   }
 );
 
+// Ingesta generica por contrato (montada en /api/ingesta -> POST /api/ingesta).
+// La usan los conectores que ya hablan el contrato del equipo, como el de Jira.
+// Misma cadena de seguridad que /esp32: limite, token, json y validacion.
+router.post(
+  '/',
+  [limitadorIngesta, exigeTokenIngesta, exigeJson, validarCon(validarEventoIngesta)],
+  async (req, res, next) => {
+    try {
+      await ingestController.ingestarEvento(req, res);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// Webhook de GitHub: no usa el token de ingesta, lo autentica la firma HMAC del
+// cuerpo crudo (req.rawBody, que guarda app.js).
 router.post('/github', [limitadorIngesta, exigeFirmaGithub], async (req, res, next) => {
   try {
     await ingestController.ingestarGithub(req, res);
@@ -42,6 +59,8 @@ router.post('/github', [limitadorIngesta, exigeFirmaGithub], async (req, res, ne
   }
 });
 
+// Avisos de Jira Automation: el backend los traduce al contrato. Se distingue de
+// POST /api/ingesta, que recibe eventos que el conector ya trae en el contrato.
 router.post('/jira', [limitadorIngesta, exigeTokenIngesta, exigeJson], async (req, res, next) => {
   try {
     await ingestController.ingestarJira(req, res);

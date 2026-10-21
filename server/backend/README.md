@@ -16,6 +16,7 @@ El servicio cubre la entrada de datos, el almacenamiento y el acceso. No calcula
 
 | Rol | Qué ve |
 |---|---|
+| Administrador del sistema | Crea las cuentas y asigna los roles. No ve métricas. Es una figura técnica, distinta del gerente |
 | Empleado | El contexto de su espacio, su jornada, sus alertas y qué datos se recogen. Inicia y cierra la jornada, responde las microencuestas y ajusta sus umbrales ambientales. Ninguna métrica de productividad, ni la propia |
 | Líder de equipo | El puntaje de cada integrante de su equipo con el desglose por dimensión, el agregado del equipo y la conectividad de sus integrantes en solo lectura |
 | Gerente | Los equipos en cascada con la métrica de cada líder, y la operación de los dispositivos y la conectividad de toda la organización |
@@ -124,10 +125,11 @@ Seed completado. Usuarios creados: gerente1, lider1, empleado1, empleado2
 Conteos: { ... }
 ```
 
-El backend queda en `http://localhost:3000` y el frontend en `http://localhost`. La clave de todos los usuarios de la demo es `Demo.2026`.
+El backend queda en `http://localhost:3000` y el frontend en `http://localhost`. Cada usuario de la demo tiene su propia clave, distinta, que el seed genera al azar y escribe en `server/backend/.seed-credenciales.txt`. Ese archivo está fuera de git y no se sube al repositorio.
 
 | Usuario | Rol | Qué demuestra al entrar |
 |---|---|---|
+| admin1 | administrador | Crea cuentas y asigna roles |
 | gerente1 | gerente | Los equipos en cascada y la operación de la organización |
 | lider1 | líder | Su equipo con el desglose y la conectividad de sus integrantes |
 | empleado1, empleado2 | empleado | El contexto de su espacio, sus alertas y la transparencia. Sin métricas de productividad |
@@ -145,7 +147,10 @@ Los endpoints de la API cuelgan del prefijo `/api`. La ingesta de sensores cuelg
 | Método | Ruta | Rol | Descripción |
 |---|---|---|---|
 | `POST` | `/api/login` | público | Entrega un token según usuario y clave |
-| `GET` | `/api/usuarios-demo` | público | Lista de usuarios para el selector de la demo |
+| `GET` | `/api/usuarios-demo` | público | Lista de usuarios para el selector de la demo. Apagado en producción |
+| `POST` | `/api/cambiar-clave` | sesión | El usuario cambia su propia clave |
+| `POST` | `/api/usuarios` | admin | Crea una cuenta y asigna su rol, con clave temporal |
+| `POST` | `/api/usuarios/:id/restablecer-clave` | admin | Restablece la clave de una cuenta |
 | `GET` | `/api/estado` | público | Estado del servicio y si hay datos sembrados |
 | `GET` | `/api/salud` | público | Comprobación de estado del servicio y la base |
 | `GET` | `/api/mi-panel` | empleado | Contexto del espacio, jornada, umbrales y alertas. Sin métricas de productividad |
@@ -164,7 +169,8 @@ Los endpoints de la API cuelgan del prefijo `/api`. La ingesta de sensores cuelg
 | `GET` | `/api/operacion/conectividad` | gerente | Conectividad de toda la organización |
 | `GET` | `/api/operacion/config` | gerente | Parámetros de operación |
 | `PUT` | `/api/operacion/config` | gerente | Ajusta los parámetros de operación |
-| `POST` | `/api/ingesta/esp32` | token | Recibe una lectura ambiental del ESP32 |
+| `POST` | `/api/ingesta/esp32` | token | Recibe una lectura cruda del ESP32 y la traduce al contrato |
+| `POST` | `/api/ingesta` | token | Recibe un evento ya en el contrato del equipo, de cualquier conector |
 | `POST` | `/api/ingesta/github` | firma | Recibe webhooks de GitHub (PRs, revisiones y commits) |
 | `POST` | `/api/ingesta/jira` | token | Recibe avisos de Jira Automation (tareas creadas y cambios de estado) |
 
@@ -172,7 +178,20 @@ Los endpoints de la API cuelgan del prefijo `/api`. La ingesta de sensores cuelg
 
 Cada endpoint de la API verifica el token y el rol en el servidor. Sin token responde `401`. Con un rol que no corresponde responde `403`. El empleado no tiene ningún endpoint que devuelva métricas de productividad, ni las de otros ni las suyas. Lo que ve por su panel es el contexto de su propio espacio.
 
-La ingesta no usa sesión. La autentica un token compartido que viaja en la cabecera `X-Ingest-Token` o como `Bearer`. Sin token válido responde `401`.
+La ingesta no usa sesión. La autentica un token compartido que viaja en la cabecera `X-Ingest-Token` o `X-Ingesta-Token`, o como `Bearer`. Sin token válido responde `401`.
+
+### Ingesta por contrato
+
+`POST /api/ingesta` recibe eventos ya en el contrato del equipo, para los conectores que no son el firmware. El cuerpo es `{ identifier, event_type, time, payload }`. El backend ubica la fuente por `identifier` en `data_sources`, guarda el evento en `events` con su `payload` tal cual y responde `2xx`. Si el `identifier` no tiene fuente registrada responde `404`, y el conector puede reintentar. El `esp32` tiene su propio endpoint porque envía crudo que hay que traducir, mientras que por aquí el evento ya llega con su forma final.
+
+```json
+{
+  "identifier": "SCRUM",
+  "event_type": "issue_updated",
+  "time": "2026-10-20T22:30:00Z",
+  "payload": { "issue_key": "SCRUM-3", "status_from": "Bloqueado", "status_to": "En curso" }
+}
+```
 
 ---
 
@@ -189,6 +208,27 @@ Los controles siguen las guías de OWASP para autenticación, límites de recurs
 - **Cabeceras de seguridad.** Helmet fija las cabeceras recomendadas y oculta la firma del servidor.
 - **CORS restringido.** Solo se aceptan los orígenes de `CORS_ORIGIN`, no cualquiera.
 - **Firma de webhooks.** Los avisos de GitHub se validan con HMAC-SHA256 sobre el cuerpo crudo y se comparan en tiempo constante. Los de Jira se autentican con el token de ingesta.
+
+### Seguridad de cuentas
+
+Sigue OWASP y NIST SP 800-63B.
+
+- **Sin registro abierto.** Las cuentas las crea el administrador del sistema y les asigna el rol. Nadie ajeno puede crearse una cuenta.
+- **Clave propia por persona.** El administrador entrega una clave temporal y el sistema obliga a cambiarla en el primer ingreso. Mientras no se cambie, las rutas de negocio responden `403` con el código `debe_cambiar_clave`.
+- **Política de contraseñas.** Mínimo doce caracteres, se admiten frases largas, se bloquean las claves comunes o triviales, sin reglas de composición obligatorias y sin rotación periódica forzada.
+- **Sin enumeración de cuentas.** El login responde un error genérico, no dice si falló el usuario o la clave. `/api/usuarios-demo` solo existe en desarrollo.
+- **Cuentas desactivables.** Una cuenta inactiva no inicia sesión, sin borrarla.
+
+## Qué no subir a GitHub
+
+Regla general: el código sí, los secretos no. Lo que nunca va al repositorio, ya cubierto por `.gitignore`:
+
+- El archivo `.env` con los valores reales. Al repositorio va solo `.env.example`, la plantilla sin secretos.
+- La clave `JWT_SECRET` y el `INGEST_TOKEN` de producción. Se entregan por un canal privado y se cargan por entorno en el servidor. El token de ingesta lo comparte el equipo de Jira, también por canal privado.
+- El archivo `.seed-credenciales.txt` que genera el seed con las claves de la demo en claro.
+- `node_modules` y la carpeta de datos de la base.
+
+Si un secreto llega a subirse por error, no basta con borrarlo en un commit nuevo, porque queda en el historial. Hay que rotarlo, es decir, generar uno nuevo y reemplazarlo en todos lados.
 
 ---
 
@@ -250,6 +290,6 @@ backend/
 
 ## Estado
 
-IImplementado. Autenticación con JWT y roles, panel del empleado con jornada, microencuestas y umbrales, vistas de líder y gerente que leen la analítica, operación de dispositivos y conectividad, ingesta de sensores por HTTP y por MQTT, conectores de GitHub y Jira por webhooks (ver `integrations/`), y los controles de seguridad.
+Implementado. Autenticación con JWT y roles, panel del empleado con jornada, microencuestas y umbrales, vistas de líder y gerente que leen la analítica, operación de dispositivos y conectividad, ingesta de sensores por HTTP y por MQTT, y los controles de seguridad.
 
-Previsto. La conexión de la capa de analítica que llene las tablas de puntaje, y el ajuste de los orígenes, los secretos y una URL pública fija para un despliegue de producción.
+Previsto. La conexión de la capa de analítica que llene las tablas de puntaje, los conectores reales de GitHub y Jira, y el ajuste de los orígenes y los secretos para un despliegue de producción.

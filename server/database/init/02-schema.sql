@@ -39,7 +39,12 @@ CREATE TABLE users (
   full_name     VARCHAR,
   created_at    TIMESTAMPTZ DEFAULT now(),
   role_id       INTEGER NOT NULL REFERENCES roles(id),
-  team_id       INTEGER REFERENCES teams(id)
+  team_id       INTEGER REFERENCES teams(id),
+  -- Seguridad de cuentas: la clave inicial la fija el administrador y el usuario
+  -- debe cambiarla en el primer ingreso. is_active permite desactivar una cuenta
+  -- sin borrarla (un usuario inactivo no puede iniciar sesion).
+  must_change_password BOOLEAN NOT NULL DEFAULT true,
+  is_active            BOOLEAN NOT NULL DEFAULT true
 );
 
 ALTER TABLE teams
