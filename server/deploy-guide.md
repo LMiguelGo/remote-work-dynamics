@@ -34,7 +34,42 @@ docker-compose down
 
 ### Variables de entorno y secretos
 
-En desarrollo los contenedores usan valores por defecto, así que no hace falta configurar nada para probar en local. Para un despliegue real se debe crear un archivo `.env` en la carpeta `backend` a partir de `backend/.env.example`, y fijar ahí el `JWT_SECRET` y el `INGEST_TOKEN` con cadenas largas y aleatorias. El archivo `.env` nunca se sube al repositorio, igual que el archivo de credenciales de la demostración.
+En desarrollo los contenedores usan valores por defecto, así que no hace falta configurar nada para probar en local. Para un despliegue real se crea un archivo `.env` en la carpeta `server`, que es donde Docker Compose lo lee, tomando como referencia las variables de `backend/.env.example`. Ahí se fijan el `POSTGRES_PASSWORD`, el `JWT_SECRET` y el `INGEST_TOKEN` con cadenas largas y aleatorias. El archivo `.env` nunca se sube al repositorio, igual que el archivo de credenciales de la demostración. Los pasos completos para dejar el backend en modo producción están en la sección siguiente.
+
+### Dejar el backend en modo producción
+
+En desarrollo el backend arranca con valores por defecto. En producción debe correr con sus propios secretos y con la verificación de seguridad activada, que impide el arranque con los valores de ejemplo. Para dejarlo así, junto con los demás contenedores, se siguen estos pasos desde la carpeta `server`.
+
+- Generar una cadena larga y aleatoria por cada secreto. En PowerShell este comando imprime una cadena de 64 caracteres; ejecutarlo una vez para cada uno.
+```bash
+-join (1..64 | ForEach-Object { '{0:x}' -f (Get-Random -Maximum 16) })
+```
+- Crear el archivo `.env` en la carpeta `server` con los secretos. En `CORS_ORIGIN` va el dominio del frontend, servido por HTTPS en el despliegue real; para una prueba local se usa `http://localhost`.
+```bash
+POSTGRES_PASSWORD=la primera cadena generada
+JWT_SECRET=la segunda cadena generada
+INGEST_TOKEN=la tercera cadena generada
+CORS_ORIGIN=https://dominio-del-frontend
+```
+- Activar el modo producción del backend. Para no modificar el `docker-compose.yml`, se crea junto a él, en la carpeta `server`, un archivo `docker-compose.override.yml` que Docker Compose combina de forma automática. Su contenido es:
+```yaml
+services:
+  backend:
+    environment:
+      - NODE_ENV=production
+```
+- Levantar el stack. Como cambia la clave de la base, la primera vez se recrea el volumen para que nazca con la clave nueva, lo que elimina los datos anteriores.
+```bash
+docker-compose down -v
+docker-compose up -d --build
+```
+- Verificar que el backend arrancó. En los logs debe aparecer que está escuchando. Si en cambio se reinicia en bucle avisando que no puede arrancar con secretos por defecto, es que el `.env` quedó mal; esa es la verificación de seguridad funcionando como debe.
+```bash
+docker-compose logs backend --tail 10
+```
+- Sembrar los datos iniciales igual que en desarrollo, con `docker-compose exec backend npm run seed`. En producción la clave del administrador se entrega a la persona por un canal privado y no se deja el archivo de credenciales en el servidor.
+
+Para volver al modo desarrollo se borran el `.env` y el `docker-compose.override.yml`, y se vuelve a levantar el stack.
 
 ### Reinicio limpio de la base
 
