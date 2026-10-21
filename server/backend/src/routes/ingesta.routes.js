@@ -3,6 +3,7 @@
 // Cadena: exigeTokenIngesta -> exigeJson -> validarCon(validarLecturaIngesta) -> controlador.
 // Ruta efectiva (montada en /api/ingesta): POST /api/ingesta/esp32
 
+const { exigeFirmaGithub } = require('../middlewares/githubFirma.middleware');
 const express = require('express');
 const { exigeTokenIngesta } = require('../middlewares/ingesta.middleware');
 const { exigeJson, validarCon } = require('../middlewares/validacion.middleware');
@@ -47,5 +48,25 @@ router.post(
     }
   }
 );
+
+// Webhook de GitHub: no usa el token de ingesta, lo autentica la firma HMAC del
+// cuerpo crudo (req.rawBody, que guarda app.js).
+router.post('/github', [limitadorIngesta, exigeFirmaGithub], async (req, res, next) => {
+  try {
+    await ingestController.ingestarGithub(req, res);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Avisos de Jira Automation: el backend los traduce al contrato. Se distingue de
+// POST /api/ingesta, que recibe eventos que el conector ya trae en el contrato.
+router.post('/jira', [limitadorIngesta, exigeTokenIngesta, exigeJson], async (req, res, next) => {
+  try {
+    await ingestController.ingestarJira(req, res);
+  } catch (err) {
+    next(err);
+  }
+});
 
 module.exports = router;

@@ -15,7 +15,7 @@ app.set('trust proxy', 1);
 app.use(helmet());
 // CORS restringido al origen del frontend, no abierto a todos.
 app.use(cors({ origin: config.CORS_ORIGIN.split(',').map((s) => s.trim()) }));
-app.use(express.json());
+app.use(express.json({ verify: (req, res, buf) => { req.rawBody = buf; } }));
 app.use('/api', routes);
 // Ingesta de sensores: router propio, autenticado por token (no por sesion JWT).
 app.use('/api/ingesta', ingestaRoutes);

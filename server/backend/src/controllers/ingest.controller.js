@@ -3,6 +3,8 @@
 // traduce el crudo al contrato e inserta. Responde 200 con el evento insertado,
 // o 404 si el dispositivo no tiene fuente registrada.
 
+const { githubAEventos } = require('../services/github.service');
+const { jiraAEventos } = require('../services/jira.service');
 const { pool } = require('../db/pool');
 const dataSources = require('../repositories/dataSources.repo');
 const events = require('../repositories/events.repo');
@@ -44,4 +46,39 @@ async function ingestarEvento(req, res) {
   return res.status(200).json({ ok: true, evento });
 }
 
-module.exports = { ingestarEsp32, ingestarEvento };
+// Guarda los eventos que traducen los servicios de GitHub y Jira. Cada evento trae
+// quien lo origino (login de GitHub o accountId de Jira); se busca su data_source por
+// ese identificador y por tipo de fuente. Si no hay fuente, el aviso se ignora.
+async function guardarEventos(eventos, sourceType, quienEs) {
+  let guardados = 0;
+  for (const ev of eventos) {
+    const identifier = quienEs(ev);
+    const fuente = await dataSources.buscarPorIdentifierYTipo(pool, identifier, sourceType);
+    if (!fuente) {
+      console.warn(`Aviso de ${sourceType} ignorado: '${identifier}' sin data_source.`);
+      continue;
+    }
+    await events.insertar(pool, {
+      sourceId: fuente.id,
+      eventType: ev.eventType,
+      payload: ev.payload,
+      time: ev.time || null,
+    });
+    guardados++;
+  }
+  return guardados;
+}
+
+async function ingestarGithub(req, res) {
+  const eventos = githubAEventos(req.headers['x-github-event'], req.body);
+  const guardados = await guardarEventos(eventos, 'github', (e) => e.login);
+  return res.status(200).json({ ok: true, guardados });
+}
+
+async function ingestarJira(req, res) {
+  const eventos = jiraAEventos(req.body);
+  const guardados = await guardarEventos(eventos, 'jira', (e) => e.accountId);
+  return res.status(200).json({ ok: true, guardados });
+}
+
+module.exports = { ingestarEsp32, ingestarEvento, ingestarGithub, ingestarJira };
