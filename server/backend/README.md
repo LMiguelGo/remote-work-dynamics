@@ -95,6 +95,9 @@ Las variables se documentan en `.env.example`. Para una copia local se copia a `
 | `MQTT_USERNAME`, `MQTT_PASSWORD` | Credenciales del broker, opcionales. Vacías si el broker es anónimo |
 | `INGEST_TOKEN` | Token compartido que autentica la ingesta HTTP de sensores |
 | `CORS_ORIGIN` | Orígenes permitidos para CORS, separados por comas |
+| `GITHUB_WEBHOOK_SECRET` | Secreto compartido con el webhook de GitHub. Valida la firma de cada aviso |
+| `GITHUB_TOKEN` | Token de la API de GitHub. Opcional y reservado: aún no se usa en el código |
+| `JIRA_STORY_POINTS_FIELD` | Id del campo de story points en Jira, por ejemplo `customfield_10016` |
 
 En producción el `JWT_SECRET` y el `INGEST_TOKEN` se fijan con cadenas largas y aleatorias, por ejemplo la salida de `openssl rand -hex 32`, y el `CORS_ORIGIN` se acota al dominio real del frontend. Los valores de `.env.example` son solo de desarrollo.
 
@@ -162,6 +165,8 @@ Los endpoints de la API cuelgan del prefijo `/api`. La ingesta de sensores cuelg
 | `GET` | `/api/operacion/config` | gerente | Parámetros de operación |
 | `PUT` | `/api/operacion/config` | gerente | Ajusta los parámetros de operación |
 | `POST` | `/api/ingesta/esp32` | token | Recibe una lectura ambiental del ESP32 |
+| `POST` | `/api/ingesta/github` | firma | Recibe webhooks de GitHub (PRs, revisiones y commits) |
+| `POST` | `/api/ingesta/jira` | token | Recibe avisos de Jira Automation (tareas creadas y cambios de estado) |
 
 ### Control de acceso
 
@@ -183,6 +188,7 @@ Los controles siguen las guías de OWASP para autenticación, límites de recurs
 - **Límite de intentos.** El login acepta diez intentos por IP cada quince minutos y la ingesta sesenta lecturas por minuto. Al pasar el límite responde `429`.
 - **Cabeceras de seguridad.** Helmet fija las cabeceras recomendadas y oculta la firma del servidor.
 - **CORS restringido.** Solo se aceptan los orígenes de `CORS_ORIGIN`, no cualquiera.
+- **Firma de webhooks.** Los avisos de GitHub se validan con HMAC-SHA256 sobre el cuerpo crudo y se comparan en tiempo constante. Los de Jira se autentican con el token de ingesta.
 
 ---
 
@@ -244,6 +250,6 @@ backend/
 
 ## Estado
 
-Implementado. Autenticación con JWT y roles, panel del empleado con jornada, microencuestas y umbrales, vistas de líder y gerente que leen la analítica, operación de dispositivos y conectividad, ingesta de sensores por HTTP y por MQTT, y los controles de seguridad.
+IImplementado. Autenticación con JWT y roles, panel del empleado con jornada, microencuestas y umbrales, vistas de líder y gerente que leen la analítica, operación de dispositivos y conectividad, ingesta de sensores por HTTP y por MQTT, conectores de GitHub y Jira por webhooks (ver `integrations/`), y los controles de seguridad.
 
-Previsto. La conexión de la capa de analítica que llene las tablas de puntaje, los conectores reales de GitHub y Jira, y el ajuste de los orígenes y los secretos para un despliegue de producción.
+Previsto. La conexión de la capa de analítica que llene las tablas de puntaje, y el ajuste de los orígenes, los secretos y una URL pública fija para un despliegue de producción.
