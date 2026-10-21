@@ -2,6 +2,8 @@ const config = require('../config/index');
 
 // Convierte una fecha de Jira a formato ISO, o null si no es valida.
 function aIso(valor) {
+  // new Date(null) es 1970-01-01 (fecha valida), asi que null y vacio se descartan antes.
+  if (valor == null || valor === '') return null;
   const d = new Date(valor);
   return Number.isNaN(d.getTime()) ? null : d.toISOString();
 }
@@ -35,9 +37,10 @@ function jiraAEventos(body) {
   if (body.webhookEvent === 'jira:issue_updated') {
     const cambio = (body.changelog?.items || []).find((i) => i.field === 'status');
     if (!cambio) return [];
-    const creada = new Date(f.created);
-    const resuelta = new Date(f.resolutiondate);
-    const horas = Number.isNaN(creada.getTime()) || Number.isNaN(resuelta.getTime())
+    // Sin resolutiondate (la tarea aun no esta resuelta) no hay tiempo de resolucion.
+    const creada = f.created ? new Date(f.created) : null;
+    const resuelta = f.resolutiondate ? new Date(f.resolutiondate) : null;
+    const horas = !creada || !resuelta || Number.isNaN(creada.getTime()) || Number.isNaN(resuelta.getTime())
       ? null
       : Math.round(((resuelta - creada) / 3.6e6) * 10) / 10;
     return [{
