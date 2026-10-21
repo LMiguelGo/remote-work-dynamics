@@ -48,9 +48,6 @@ if (config.NODE_ENV === 'production') {
   if (!process.env.JWT_SECRET || config.JWT_SECRET === JWT_SECRET_DEV) {
     faltantes.push('JWT_SECRET');
   }
-  if (!process.env.GITHUB_WEBHOOK_SECRET || config.GITHUB_WEBHOOK_SECRET === GITHUB_WEBHOOK_SECRET_DEV) {
-    faltantes.push('GITHUB_WEBHOOK_SECRET');
-  }
   if (!process.env.INGEST_TOKEN || config.INGEST_TOKEN === INGEST_TOKEN_DEV) {
     faltantes.push('INGEST_TOKEN');
   }

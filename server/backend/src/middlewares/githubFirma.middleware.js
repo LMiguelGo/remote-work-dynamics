@@ -2,6 +2,11 @@ const crypto = require('crypto');
 const config = require('../config/index');
 
 function exigeFirmaGithub(req, res, next) {
+  // En produccion, sin secreto propio la ruta se apaga (fail-closed): el valor de
+  // desarrollo esta en el repo y permitiria falsificar avisos.
+  if (config.NODE_ENV === 'production' && !process.env.GITHUB_WEBHOOK_SECRET) {
+    return res.status(503).json({ error: 'Webhook de GitHub no configurado' });
+  }
   const recibida = req.headers['x-hub-signature-256'];
   if (!recibida || !req.rawBody) return res.status(401).json({ error: 'Firma ausente' });
   const esperada = 'sha256=' +
