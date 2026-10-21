@@ -1,2 +1,6 @@
 node_modules
 npm-debug.log
+# Secretos y credenciales locales: nunca dentro de la imagen.
+.env
+.env.*
+.seed-credenciales.txt

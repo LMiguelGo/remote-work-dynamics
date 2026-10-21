@@ -6,7 +6,7 @@
 const express = require('express');
 const { exigeTokenIngesta } = require('../middlewares/ingesta.middleware');
 const { exigeJson, validarCon } = require('../middlewares/validacion.middleware');
-const { validarLecturaIngesta } = require('../utils/validacion');
+const { validarLecturaIngesta, validarEventoIngesta } = require('../utils/validacion');
 const { crearLimitador } = require('../middlewares/rateLimit.middleware');
 const ingestController = require('../controllers/ingest.controller');
 
@@ -27,6 +27,21 @@ router.post(
   async (req, res, next) => {
     try {
       await ingestController.ingestarEsp32(req, res);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// Ingesta generica por contrato (montada en /api/ingesta -> POST /api/ingesta).
+// La usan los conectores que ya hablan el contrato del equipo, como el de Jira.
+// Misma cadena de seguridad que /esp32: limite, token, json y validacion.
+router.post(
+  '/',
+  [limitadorIngesta, exigeTokenIngesta, exigeJson, validarCon(validarEventoIngesta)],
+  async (req, res, next) => {
+    try {
+      await ingestController.ingestarEvento(req, res);
     } catch (err) {
       next(err);
     }

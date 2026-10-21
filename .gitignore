@@ -13,3 +13,15 @@ env/
 *.db
 *.sqlite3
 server/api/datos/*.db
+
+# Node
+node_modules/
+
+# Variables de entorno con secretos (nunca al repositorio).
+# .env.example si se versiona, es la plantilla sin secretos.
+.env
+.env.*
+!.env.example
+
+# Credenciales de la demo generadas por el seed (claves en claro, nunca al repo).
+.seed-credenciales.txt

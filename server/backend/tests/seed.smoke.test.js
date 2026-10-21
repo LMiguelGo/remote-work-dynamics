@@ -9,14 +9,14 @@ test.after(async () => {
   await pool.end();
 });
 
-test('hay 3 roles base', async () => {
+test('hay 4 roles base (admin, gerente, lider, empleado)', async () => {
   const r = await query('SELECT count(*)::int AS n FROM roles;');
-  assert.equal(r.rows[0].n, 3);
+  assert.equal(r.rows[0].n, 4);
 });
 
-test('hay 4 usuarios de demo', async () => {
+test('hay 5 usuarios de demo', async () => {
   const r = await query('SELECT count(*)::int AS n FROM users;');
-  assert.equal(r.rows[0].n, 4);
+  assert.equal(r.rows[0].n, 5);
 });
 
 test('hay al menos una dimension_analyses con fechas no nulas', async () => {
