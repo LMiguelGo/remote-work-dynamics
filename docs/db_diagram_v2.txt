@@ -12,14 +12,12 @@ Enum team_type {
 }
 
 Enum source_type {
+  web_app
   esp32
   github
   jira
-  slack
-  daily_survey
-  sonarqube
   network
-  working_hours
+  sonarqube
 }
 
 Enum space_dimension {
@@ -140,6 +138,7 @@ Table dimension_analyses {
   dimension space_dimension [not null]
   start_date date [not null]
   end_date date [not null]
+  frequency varchar [not null, note: 'day, week, month']
   normalized_score decimal [not null]
   criticality_status criticality [not null]
   calculated_at timestamp [not null, default: `CURRENT_TIMESTAMP`]
@@ -152,6 +151,8 @@ Table metric_analyses {
   metric_name varchar [not null, note: 'clave del catalogo: temperatura, enps, lead_time_dias, ...']
   raw_value decimal
   normalized_value decimal
+  start_date date [not null]
+  end_date date [not null]
   criticality criticality [not null]
 }
 

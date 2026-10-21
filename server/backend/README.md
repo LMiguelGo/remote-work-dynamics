@@ -1,6 +1,6 @@
 # Backend — Infraestructura Telemática para el Análisis de Dinámicas de Trabajo Remoto
 
-Servicio que recibe la actividad de trabajo, la persiste en PostgreSQL con TimescaleDB y la expone por una API con control de acceso por rol. Es la reescritura del prototipo de la Unidad 3 sobre una base de datos real y en contenedores. Recibe eventos de los sensores y de los conectores, los guarda, lee la analítica que calcula otro contenedor y entrega a cada rol lo que le corresponde.
+Servicio que recibe la actividad de trabajo, la persiste en PostgreSQL con TimescaleDB y la expone por una API con control de acceso por rol. Es la reescritura del prototipo sobre la base de datos real y en contenedores. Recibe eventos de los sensores y de los conectores, los guarda, lee la analítica que calcula otro contenedor y entrega a cada rol lo que le corresponde.
 
 Construido con **Node.js 22**, **Express**, **JWT** y el cliente **pg** sobre **PostgreSQL** con la extensión **TimescaleDB**. Las lecturas de los sensores entran por HTTP y por un broker **MQTT**.
 
