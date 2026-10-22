@@ -1,7 +1,7 @@
 import React from 'react';
 import { Shield } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { iniciales, rolTexto } from '../utils/helpers';
+import { iniciales, nombreUsuario, rolTexto } from '../utils/helpers';
 
 export interface TabItem {
   label: string;
@@ -19,6 +19,7 @@ export const TopBar: React.FC<TopBarProps> = ({ tabs = [], activeIndex = 0, onTa
   const { user, logout } = useAuth();
 
   if (!user) return null;
+  const nombre = nombreUsuario(user);
 
   const handleTabClick = (t: TabItem, i: number) => {
     if (t.onSelect) {
@@ -61,10 +62,10 @@ export const TopBar: React.FC<TopBarProps> = ({ tabs = [], activeIndex = 0, onTa
 
         <div className="userchip">
           <div className="who">
-            <b>{user.nombre}</b>
+            <b>{nombre}</b>
             <span>{rolTexto(user.rol)}</span>
           </div>
-          <div className="avatar">{iniciales(user.nombre)}</div>
+          <div className="avatar">{iniciales(nombre)}</div>
           <button className="logout" onClick={logout}>
             Salir
           </button>

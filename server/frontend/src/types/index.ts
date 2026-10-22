@@ -1,5 +1,22 @@
-export type Role = 'empleado' | 'lider' | 'gerente';
+export type Role = 'admin' | 'gerente' | 'lider' | 'empleado';
 
+// Usuario de la sesión, tal como lo entrega POST /api/login.
+export interface Usuario {
+  id: number;
+  username: string;
+  full_name: string | null;
+  rol: Role;
+}
+
+// Elemento de GET /api/usuarios-demo (solo existe en desarrollo).
+export interface UsuarioDemo {
+  username: string;
+  full_name: string | null;
+  role_name: Role;
+}
+
+// LEGACY: forma del prototipo. Solo la usan los tipos de abajo (panel, equipo,
+// organización), que se reemplazan cuando se adapten esas vistas a la API nueva.
 export interface User {
   id: string;
   nombre: string;
@@ -29,44 +46,51 @@ export interface DimensionesMap {
   E: number;
 }
 
+// --- Panel del empleado: respuesta de GET /api/mi-panel ---
+
+export interface AlertaEmpleado {
+  id: number | string;
+  user_id: number | string;
+  alert_type: string;
+  message: string;
+  severity: string | null;
+  created_at: string;
+  resolved_at: string | null;
+}
+
+export interface RangoUmbral {
+  min: number;
+  max: number;
+}
+
+// Claves tal como las guarda el backend (y como espera PUT /api/umbrales).
+export interface UmbralesAmbientales {
+  temperatura_c: RangoUmbral;
+  humedad_pct: RangoUmbral;
+  ruido_db: RangoUmbral;
+}
+
+// Última lectura del sensor: el payload del evento aplanado junto con su hora.
+export interface LecturaAmbiente {
+  time: string;
+  temperature?: number | null;
+  humidity?: number | null;
+  noise_level?: number | null;
+}
+
 export interface EmpleadoPanelData {
-  usuario: User;
+  usuario: { id: number; rol: Role };
+  capture_active: boolean | null;
+  jornada: { estado: string; start_time: string | null };
   ambiente: {
-    temperatura: number | null;
-    humedad: number | null;
-    presion: number | null;
     estado: string;
-    serieTemp: number[];
+    ultima: LecturaAmbiente | null;
+    umbrales: UmbralesAmbientales | null;
   };
-  conexion: {
-    calidad: number | null;
-    estado: string;
-    vpn: boolean;
-  };
-  alertas: Array<{
-    id: number;
-    tipo: string;
-    mensaje: string;
-    timestamp: string;
-  }>;
-  bienestar: {
-    nivel: number;
-    texto: string;
-  };
-  jornada: {
-    estado: 'abierta' | 'cerrada';
-    horasHoy: number | null;
-    horasPactadas: number;
-    extralaboralPct: number | null;
-  };
-  encuestaPendiente: boolean;
-  umbrales: {
-    temperatura: { minimo: number | null; maximo: number | null };
-    humedad: { minimo: number | null; maximo: number | null };
-    calidad_conexion: { minimo: number | null; maximo: number | null };
-  };
-  queSeCaptura: Array<{ fuente: string; tipo: string }>;
-  capturaActiva: boolean;
+  conexion: { estado: string };
+  alertas: AlertaEmpleado[];
+  encuestaDiariaPendiente: boolean;
+  encuestaSemanalPendiente: boolean;
 }
 
 export interface IntegranteEquipo {
