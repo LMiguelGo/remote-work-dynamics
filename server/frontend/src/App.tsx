@@ -34,8 +34,7 @@ export const App: React.FC = () => {
   } else if (user.rol === 'lider') {
     tabs = [
       { label: 'Equipo' },
-      { label: 'Patrones', target: 'card-temporal' },
-      { label: 'Preguntas', target: 'card-preguntas' },
+      { label: 'Actividad', target: 'card-actividad' },
     ];
   } else if (user.rol === 'gerente') {
     activeIndex = gerenteSubView === 'organizacion' ? 0 : 1;

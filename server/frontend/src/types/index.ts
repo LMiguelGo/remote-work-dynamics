@@ -93,6 +93,56 @@ export interface EmpleadoPanelData {
   encuestaSemanalPendiente: boolean;
 }
 
+// --- Tablero del líder: respuesta de GET /api/equipo ---
+// Los puntajes vienen en escala 0-10 y la criticidad como texto
+// ('optimo' | 'precaucion' | 'critico'). Las 5 dimensiones llegan siempre;
+// sin datos, el puntaje es null.
+
+export interface PeriodoAnalisis {
+  start_date: string | null;
+  end_date: string | null;
+}
+
+export interface MetricaAnalisis {
+  metric_name: string;
+  raw_value: number | null;
+  normalized_value: number | null;
+  criticality: string | null;
+  periodo: PeriodoAnalisis;
+}
+
+export interface DimensionAnalisis {
+  dimension: DimensionKey;
+  frequency: string | null;
+  periodo: PeriodoAnalisis;
+  normalized_score: number | null;
+  criticality_status: string | null;
+  metricas: MetricaAnalisis[];
+}
+
+export interface PersonaBasica {
+  id: number;
+  username: string;
+  full_name: string | null;
+}
+
+export interface IntegranteLider {
+  usuario: PersonaBasica;
+  dimensiones: DimensionAnalisis[];
+}
+
+export interface AgregadoDimension {
+  dimension: DimensionKey;
+  normalized_score: number;
+  integrantes_con_dato: number;
+}
+
+export interface EquipoLiderData {
+  lider: PersonaBasica | null;
+  integrantes: IntegranteLider[];
+  equipo: { agregado: AgregadoDimension[] | null };
+}
+
 export interface IntegranteEquipo {
   usuario: User;
   compuesto: number;
