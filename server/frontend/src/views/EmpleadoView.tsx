@@ -492,7 +492,7 @@ export const EmpleadoView: React.FC = () => {
             <div className="v">{data.conexion.estado}</div>
             <div className="s">
               {data.conexion.estado === 'Sin datos'
-                ? 'Todavía no hay una fuente de red registrada para ti.'
+                ? 'Este panel todavía no muestra las mediciones de red.'
                 : 'Tu conexión está registrada.'}
             </div>
           </div>
