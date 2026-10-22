@@ -143,6 +143,68 @@ export interface EquipoLiderData {
   equipo: { agregado: AgregadoDimension[] | null };
 }
 
+// --- Tablero del gerente: respuesta de GET /api/organizacion ---
+// Cada equipo trae la misma forma que /api/equipo (líder, integrantes y agregado).
+
+export interface OrganizacionGerenteData {
+  gerente: PersonaBasica | null;
+  equipos: EquipoLiderData[];
+}
+
+// --- Operación del gerente: GET /api/operacion/* ---
+
+export interface DispositivoEstado {
+  id: number;
+  source_type: string;
+  identifier: string;
+  dueno: { username: string | null; full_name: string | null };
+  estado: string; // 'en vivo' | 'con historial' | 'sin datos'
+  ultima_actividad: string | null;
+}
+
+export interface RespuestaDispositivos {
+  generado_en: string;
+  umbral_en_vivo_segundos: number;
+  dispositivos: DispositivoEstado[];
+}
+
+export interface QosRed {
+  latency_ms: number | null;
+  download_speed_mbps: number | null;
+  upload_speed_mbps: number | null;
+  packet_loss_percentage: number | null;
+  time: string | null;
+}
+
+export interface InterrupcionRed {
+  interruption_duration_seconds: number | null;
+  interruption_count: number | null;
+  time: string | null;
+}
+
+export interface FuenteRed {
+  id: number;
+  identifier: string;
+  dueno: { username: string | null; full_name: string | null };
+  estado: string; // 'con datos' | 'sin datos'
+  qos: QosRed | null;
+  interrupcion: InterrupcionRed | null;
+}
+
+export interface RespuestaConectividad {
+  fuentes: FuenteRed[];
+}
+
+export interface ConfigOperacionBackend {
+  umbral_en_vivo_segundos: number;
+  ventana_retencion_dias: number;
+}
+
+export interface RespuestaConfigOperacion {
+  config: ConfigOperacionBackend;
+  persistencia: string;
+}
+
 export interface IntegranteEquipo {
   usuario: User;
   compuesto: number;
