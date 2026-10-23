@@ -1,0 +1,15 @@
+# Activa HTTPS en el frontend. Se usa junto al compose principal:
+#   docker compose -f docker-compose.yml -f docker-compose.https.yml up -d --build
+# Si también se usa docker-compose.override.yml (modo producción del backend),
+# hay que incluirlo en la lista con otro -f, porque al pasar -f explícitos
+# Docker Compose deja de cargarlo solo.
+#
+# Requiere server/certs/fullchain.pem y server/certs/privkey.pem
+# (ver deploy-https.md). Esa carpeta nunca se sube al repositorio.
+services:
+  frontend:
+    ports:
+      - "443:443"
+    volumes:
+      - ./frontend/nginx.prod.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./certs:/etc/nginx/certs:ro
