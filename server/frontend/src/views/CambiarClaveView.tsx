@@ -117,7 +117,9 @@ export const CambiarClaveView: React.FC = () => {
         {errores.length > 0 && (
           <div className="error">
             {errores.map((m) => (
-              <p key={m}>{m}</p>
+              <p key={m} style={{ color: 'var(--red)', margin: '0 0 4px' }}>
+                {m}
+              </p>
             ))}
           </div>
         )}

@@ -36,11 +36,13 @@ function mensajeDeError(err: unknown): string[] {
   return [err instanceof Error ? err.message : 'Ocurrió un error inesperado'];
 }
 
-// Horas y minutos transcurridos desde un instante ISO.
-function transcurrido(inicioISO: string | null): string | null {
+// Horas y minutos transcurridos desde un instante ISO hasta `ahora` (ms).
+function transcurrido(inicioISO: string | null, ahora: number): string | null {
   if (!inicioISO) return null;
-  const ms = Date.now() - new Date(inicioISO).getTime();
-  if (Number.isNaN(ms) || ms < 0) return null;
+  const inicio = new Date(inicioISO).getTime();
+  if (Number.isNaN(inicio)) return null;
+  // Una diferencia negativa (reloj del servidor un poco adelantado) cuenta como cero.
+  const ms = Math.max(0, ahora - inicio);
   const min = Math.floor(ms / 60000);
   return `${Math.floor(min / 60)} h ${min % 60} min`;
 }
@@ -95,9 +97,17 @@ export const EmpleadoView: React.FC = () => {
   // Transparencia
   const [transpOpen, setTranspOpen] = useState(false);
 
+  // Reloj: hace que el tiempo transcurrido de la jornada avance solo.
+  const [ahora, setAhora] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setAhora(Date.now()), 15000);
+    return () => clearInterval(t);
+  }, []);
+
   const cargarDatos = useCallback(async () => {
     try {
       const res = await api<EmpleadoPanelData>('/api/mi-panel');
+      setAhora(Date.now());
       setData(res);
       setUmbrales(aFormulario(res.ambiente?.umbrales ?? null));
       setErrorCarga(null);
@@ -137,7 +147,7 @@ export const EmpleadoView: React.FC = () => {
   const alertasActivas = data.alertas.filter((a) => !a.resolved_at);
   const sinAlertas = alertasActivas.length === 0;
   const abierta = data.jornada.start_time != null;
-  const tiempoJornada = transcurrido(data.jornada.start_time);
+  const tiempoJornada = transcurrido(data.jornada.start_time, ahora);
 
   // Ejecuta una acción del formulario y muestra los errores del backend si falla.
   const ejecutar = async (accion: () => Promise<void>) => {

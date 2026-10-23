@@ -95,12 +95,13 @@ export const LoginView: React.FC = () => {
         </form>
 
         {aviso && !error && <p className="hint">{aviso}</p>}
-        {error && <p className="error">{error}</p>}
-        {hayDemo && (
-          <p className="hint">
-            Modo demostración: cada usuario tiene su propia clave, generada por el seed en{' '}
-            <code>server/backend/.seed-credenciales.txt</code>.
+        {error && (
+          <p className="error" role="alert" style={{ color: 'var(--red)', margin: '10px 0 0' }}>
+            {error}
           </p>
+        )}
+        {hayDemo && (
+          <p className="hint">Modo demostración: cada usuario tiene su propia clave.</p>
         )}
       </div>
     </div>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Users, BarChart3, ChevronDown } from 'lucide-react';
+import { Users, BarChart3, ChevronDown, Wifi } from 'lucide-react';
 import { api } from '../services/api';
 import {
   DIMN,
@@ -9,11 +9,13 @@ import {
   type DimensionesMap,
   type EquipoLiderData,
   type IntegranteLider,
+  type RespuestaConectividad,
   type SemaphoreLevel,
 } from '../types';
 import { PageHead } from '../components/PageHead';
 import { SemaphoreChip } from '../components/SemaphoreChip';
 import { RadarChart } from '../components/charts/RadarChart';
+import { TablaConectividad } from '../components/TablaConectividad';
 import { iniciales, nombreUsuario } from '../utils/helpers';
 
 // La criticidad la calcula la analítica; aquí solo se traduce a color.
@@ -48,6 +50,8 @@ function fmtFecha(f: string | null | undefined): string {
 
 export const LiderView: React.FC = () => {
   const [data, setData] = useState<EquipoLiderData | null>(null);
+  const [conectividad, setConectividad] = useState<RespuestaConectividad | null>(null);
+  const [errorConectividad, setErrorConectividad] = useState<string | null>(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [abiertas, setAbiertas] = useState<Record<number, boolean>>({});
@@ -55,8 +59,23 @@ export const LiderView: React.FC = () => {
   const cargar = useCallback(async () => {
     setCargando(true);
     try {
-      setData(await api<EquipoLiderData>('/api/equipo'));
+      const [equipo, red] = await Promise.allSettled([
+        api<EquipoLiderData>('/api/equipo'),
+        api<RespuestaConectividad>('/api/equipo/conectividad'),
+      ]);
+      if (equipo.status === 'rejected') throw equipo.reason;
+      setData(equipo.value);
       setError(null);
+      // La conectividad es secundaria: si falla, el resto del tablero se muestra igual.
+      if (red.status === 'fulfilled') {
+        setConectividad(red.value);
+        setErrorConectividad(null);
+      } else {
+        setConectividad(null);
+        setErrorConectividad(
+          red.reason instanceof Error ? red.reason.message : 'No se pudo cargar la conectividad',
+        );
+      }
     } catch (err) {
       // 401 y debe_cambiar_clave ya los resuelve AuthContext.
       setError(err instanceof Error ? err.message : 'No se pudo cargar el equipo');
@@ -315,6 +334,34 @@ export const LiderView: React.FC = () => {
             <SemaphoreChip level="bad" text="Crítico (menos de 6)" />{' '}
             <SemaphoreChip level="none" text="Sin dato" />
           </div>
+        </div>
+
+        {/* Card 4: Conectividad del equipo */}
+        <div
+          className="card span2"
+          id="card-conectividad"
+          style={{ '--i': 3 } as React.CSSProperties}
+        >
+          <div className="card-head">
+            <div className="icon-chip">
+              <Wifi size={22} />
+            </div>
+            <div>
+              <h3 className="card-title">Conectividad del equipo</h3>
+              <div className="card-sub">
+                Última medición de red por integrante. Solo lectura.
+              </div>
+            </div>
+            <div className="card-tag">Red</div>
+          </div>
+          {errorConectividad ? (
+            <p className="error">{errorConectividad}</p>
+          ) : (
+            <TablaConectividad
+              fuentes={conectividad?.fuentes ?? []}
+              vacio="No hay fuentes de red registradas para tu equipo."
+            />
+          )}
         </div>
       </div>
     </div>
