@@ -1,5 +1,22 @@
-export type Role = 'empleado' | 'lider' | 'gerente';
+export type Role = 'admin' | 'gerente' | 'lider' | 'empleado';
 
+// Usuario de la sesión, tal como lo entrega POST /api/login.
+export interface Usuario {
+  id: number;
+  username: string;
+  full_name: string | null;
+  rol: Role;
+}
+
+// Elemento de GET /api/usuarios-demo (solo existe en desarrollo).
+export interface UsuarioDemo {
+  username: string;
+  full_name: string | null;
+  role_name: Role;
+}
+
+// LEGACY: forma del prototipo. Solo la usan los tipos de abajo (panel, equipo,
+// organización), que se reemplazan cuando se adapten esas vistas a la API nueva.
 export interface User {
   id: string;
   nombre: string;
@@ -29,44 +46,163 @@ export interface DimensionesMap {
   E: number;
 }
 
+// --- Panel del empleado: respuesta de GET /api/mi-panel ---
+
+export interface AlertaEmpleado {
+  id: number | string;
+  user_id: number | string;
+  alert_type: string;
+  message: string;
+  severity: string | null;
+  created_at: string;
+  resolved_at: string | null;
+}
+
+export interface RangoUmbral {
+  min: number;
+  max: number;
+}
+
+// Claves tal como las guarda el backend (y como espera PUT /api/umbrales).
+export interface UmbralesAmbientales {
+  temperatura_c: RangoUmbral;
+  humedad_pct: RangoUmbral;
+  ruido_db: RangoUmbral;
+}
+
+// Última lectura del sensor: el payload del evento aplanado junto con su hora.
+export interface LecturaAmbiente {
+  time: string;
+  temperature?: number | null;
+  humidity?: number | null;
+  noise_level?: number | null;
+}
+
 export interface EmpleadoPanelData {
-  usuario: User;
+  usuario: { id: number; rol: Role };
+  capture_active: boolean | null;
+  jornada: { estado: string; start_time: string | null };
   ambiente: {
-    temperatura: number | null;
-    humedad: number | null;
-    presion: number | null;
     estado: string;
-    serieTemp: number[];
+    ultima: LecturaAmbiente | null;
+    umbrales: UmbralesAmbientales | null;
   };
-  conexion: {
-    calidad: number | null;
-    estado: string;
-    vpn: boolean;
-  };
-  alertas: Array<{
-    id: number;
-    tipo: string;
-    mensaje: string;
-    timestamp: string;
-  }>;
-  bienestar: {
-    nivel: number;
-    texto: string;
-  };
-  jornada: {
-    estado: 'abierta' | 'cerrada';
-    horasHoy: number | null;
-    horasPactadas: number;
-    extralaboralPct: number | null;
-  };
-  encuestaPendiente: boolean;
-  umbrales: {
-    temperatura: { minimo: number | null; maximo: number | null };
-    humedad: { minimo: number | null; maximo: number | null };
-    calidad_conexion: { minimo: number | null; maximo: number | null };
-  };
-  queSeCaptura: Array<{ fuente: string; tipo: string }>;
-  capturaActiva: boolean;
+  conexion: { estado: string };
+  alertas: AlertaEmpleado[];
+  encuestaDiariaPendiente: boolean;
+  encuestaSemanalPendiente: boolean;
+}
+
+// --- Tablero del líder: respuesta de GET /api/equipo ---
+// Los puntajes vienen en escala 0-10 y la criticidad como texto
+// ('optimo' | 'precaucion' | 'critico'). Las 5 dimensiones llegan siempre;
+// sin datos, el puntaje es null.
+
+export interface PeriodoAnalisis {
+  start_date: string | null;
+  end_date: string | null;
+}
+
+export interface MetricaAnalisis {
+  metric_name: string;
+  raw_value: number | null;
+  normalized_value: number | null;
+  criticality: string | null;
+  periodo: PeriodoAnalisis;
+}
+
+export interface DimensionAnalisis {
+  dimension: DimensionKey;
+  frequency: string | null;
+  periodo: PeriodoAnalisis;
+  normalized_score: number | null;
+  criticality_status: string | null;
+  metricas: MetricaAnalisis[];
+}
+
+export interface PersonaBasica {
+  id: number;
+  username: string;
+  full_name: string | null;
+}
+
+export interface IntegranteLider {
+  usuario: PersonaBasica;
+  dimensiones: DimensionAnalisis[];
+}
+
+export interface AgregadoDimension {
+  dimension: DimensionKey;
+  normalized_score: number;
+  integrantes_con_dato: number;
+}
+
+export interface EquipoLiderData {
+  lider: PersonaBasica | null;
+  integrantes: IntegranteLider[];
+  equipo: { agregado: AgregadoDimension[] | null };
+}
+
+// --- Tablero del gerente: respuesta de GET /api/organizacion ---
+// Cada equipo trae la misma forma que /api/equipo (líder, integrantes y agregado).
+
+export interface OrganizacionGerenteData {
+  gerente: PersonaBasica | null;
+  equipos: EquipoLiderData[];
+}
+
+// --- Operación del gerente: GET /api/operacion/* ---
+
+export interface DispositivoEstado {
+  id: number;
+  source_type: string;
+  identifier: string;
+  dueno: { username: string | null; full_name: string | null };
+  estado: string; // 'en vivo' | 'con historial' | 'sin datos'
+  ultima_actividad: string | null;
+}
+
+export interface RespuestaDispositivos {
+  generado_en: string;
+  umbral_en_vivo_segundos: number;
+  dispositivos: DispositivoEstado[];
+}
+
+export interface QosRed {
+  latency_ms: number | null;
+  download_speed_mbps: number | null;
+  upload_speed_mbps: number | null;
+  packet_loss_percentage: number | null;
+  time: string | null;
+}
+
+export interface InterrupcionRed {
+  interruption_duration_seconds: number | null;
+  interruption_count: number | null;
+  time: string | null;
+}
+
+export interface FuenteRed {
+  id: number;
+  identifier: string;
+  dueno: { username: string | null; full_name: string | null };
+  estado: string; // 'con datos' | 'sin datos'
+  qos: QosRed | null;
+  interrupcion: InterrupcionRed | null;
+}
+
+export interface RespuestaConectividad {
+  fuentes: FuenteRed[];
+}
+
+export interface ConfigOperacionBackend {
+  umbral_en_vivo_segundos: number;
+  ventana_retencion_dias: number;
+}
+
+export interface RespuestaConfigOperacion {
+  config: ConfigOperacionBackend;
+  persistencia: string;
 }
 
 export interface IntegranteEquipo {
