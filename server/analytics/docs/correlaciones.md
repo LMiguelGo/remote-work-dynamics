@@ -1,5 +1,7 @@
 # Correlaciones entre métricas (Marco SPACE)
 
+> **Nota.** Describe las relaciones del marco SPACE. El `id` que usa la API es el orden de las filas de esta tabla (1 a 11). En el código (`correlaciones.py`) las relaciones 8 y 10 están como **directa** y aquí aparecen como inversa: la frecuencia de commits se mide con `dias_sin_commits` (más días sin commits = menos frecuencia), así que el signo queda invertido. La tabla con las métricas exactas y el periodo de cada relación está en [`../README.md`](../README.md#62-las-11-relaciones).
+
 | Dimensiones (Marco SPACE) | Métricas Correlacionadas | Relación | Lo que demuestra (Hipótesis y Comportamiento) |
 |---|---|---|---|
 | Satisfacción vs. Rendimiento (Salud Laboral y Calidad) | % Tiempo Extralaboral (Fatiga) vs. Fiabilidad de PRs (% Aprobados) | Inversa (-) | El agotamiento cognitivo y el exceso de horas extra incrementan los errores de lógica, elevando los rechazos en la primera revisión del código. |

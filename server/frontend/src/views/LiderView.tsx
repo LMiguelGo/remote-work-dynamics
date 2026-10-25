@@ -1,39 +1,95 @@
-import React, { useState, useEffect } from 'react';
-import { Users, BarChart3, Shield, ChevronDown } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Users, BarChart3, ChevronDown, Wifi } from 'lucide-react';
 import { api } from '../services/api';
-import { ORDEN_DIMENSIONES, type LiderEquipoData } from '../types';
+import {
+  DIMN,
+  ORDEN_DIMENSIONES,
+  type DimensionAnalisis,
+  type DimensionKey,
+  type DimensionesMap,
+  type EquipoLiderData,
+  type IntegranteLider,
+  type RespuestaConectividad,
+  type SemaphoreLevel,
+} from '../types';
 import { PageHead } from '../components/PageHead';
-import { RingProgress } from '../components/RingProgress';
-import { SpaceDims } from '../components/SpaceDims';
 import { SemaphoreChip } from '../components/SemaphoreChip';
 import { RadarChart } from '../components/charts/RadarChart';
-import { TemporalChart } from '../components/charts/TemporalChart';
-import {
-  iniciales,
-  colorPuntaje,
-  nivelPuntaje,
-  nivelTemperatura,
-  nivelConexion,
-  nivelExtralaboral,
-} from '../utils/helpers';
+import { TablaConectividad } from '../components/TablaConectividad';
+import { DetallePersona } from '../components/analitica/DetallePersona';
+import { iniciales, nombreUsuario } from '../utils/helpers';
+
+// La criticidad la calcula la analítica; aquí solo se traduce a color.
+function nivelCriticidad(estado: string | null | undefined): SemaphoreLevel {
+  switch (estado) {
+    case 'optimo':
+      return 'ok';
+    case 'precaucion':
+      return 'warn';
+    case 'critico':
+      return 'bad';
+    default:
+      return 'none';
+  }
+}
+
+// Escala 0-10 con un decimal; null significa "sin dato", nunca 0.
+function fmt(v: number | null | undefined): string {
+  return v == null ? '—' : v.toFixed(1);
+}
+
+function dimensionDe(i: IntegranteLider, d: DimensionKey): DimensionAnalisis | undefined {
+  return i.dimensiones.find((x) => x.dimension === d);
+}
+
+// El backend entrega fechas de calendario (sin hora). Se toma el día tal cual viene
+// para que la zona horaria del navegador no lo corra un día atrás.
+function fmtFecha(f: string | null | undefined): string {
+  const m = f?.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : (f ?? '');
+}
 
 export const LiderView: React.FC = () => {
-  const [data, setData] = useState<LiderEquipoData | null>(null);
+  const [data, setData] = useState<EquipoLiderData | null>(null);
+  const [conectividad, setConectividad] = useState<RespuestaConectividad | null>(null);
+  const [errorConectividad, setErrorConectividad] = useState<string | null>(null);
   const [cargando, setCargando] = useState(true);
-  const [openRows, setOpenRows] = useState<Record<number, boolean>>({});
+  const [error, setError] = useState<string | null>(null);
+  const [abiertas, setAbiertas] = useState<Record<number, boolean>>({});
 
-  useEffect(() => {
-    api<LiderEquipoData>('/api/equipo')
-      .then((res) => setData(res))
-      .catch((err) => console.error(err))
-      .finally(() => setCargando(false));
+  const cargar = useCallback(async () => {
+    setCargando(true);
+    try {
+      const [equipo, red] = await Promise.allSettled([
+        api<EquipoLiderData>('/api/equipo'),
+        api<RespuestaConectividad>('/api/equipo/conectividad'),
+      ]);
+      if (equipo.status === 'rejected') throw equipo.reason;
+      setData(equipo.value);
+      setError(null);
+      // La conectividad es secundaria: si falla, el resto del tablero se muestra igual.
+      if (red.status === 'fulfilled') {
+        setConectividad(red.value);
+        setErrorConectividad(null);
+      } else {
+        setConectividad(null);
+        setErrorConectividad(
+          red.reason instanceof Error ? red.reason.message : 'No se pudo cargar la conectividad',
+        );
+      }
+    } catch (err) {
+      // 401 y debe_cambiar_clave ya los resuelve AuthContext.
+      setError(err instanceof Error ? err.message : 'No se pudo cargar el equipo');
+    } finally {
+      setCargando(false);
+    }
   }, []);
 
-  const toggleRow = (idx: number) => {
-    setOpenRows((prev) => ({ ...prev, [idx]: !prev[idx] }));
-  };
+  useEffect(() => {
+    void cargar();
+  }, [cargar]);
 
-  if (cargando || !data) {
+  if (cargando) {
     return (
       <div className="page">
         <p className="lead">Cargando equipo...</p>
@@ -41,17 +97,44 @@ export const LiderView: React.FC = () => {
     );
   }
 
-  const integrantes = data.integrantes || [];
-  const agregadoDims = data.agregadoDimensiones || { S: 0, P: 0, A: 0, C: 0, E: 0 };
-  const metricaLider = data.metricaLider ?? 0;
-  const serieAnimo = data.serieAnimo || [];
-  const preguntasParaElLider = data.preguntasParaElLider || [];
+  if (!data) {
+    return (
+      <div className="page">
+        <p className="error">{error ?? 'No se pudo cargar el equipo.'}</p>
+        <button className="btn" onClick={() => void cargar()}>
+          Reintentar
+        </button>
+      </div>
+    );
+  }
+
+  const integrantes = data.integrantes ?? [];
+  const agregado = data.equipo?.agregado ?? null;
+
+  // Radar: el backend manda una lista; el gráfico espera un mapa por dimensión.
+  const mapaAgregado = {} as DimensionesMap;
+  for (const d of ORDEN_DIMENSIONES) {
+    mapaAgregado[d] = agregado?.find((a) => a.dimension === d)?.normalized_score ?? 0;
+  }
+
+  const conDatos = (i: IntegranteLider) => i.dimensiones.filter((d) => d.normalized_score != null);
+  const integrantesConAnalitica = integrantes.filter((i) => conDatos(i).length > 0).length;
+  const criticos = (i: IntegranteLider) =>
+    i.dimensiones.filter((d) => d.criticality_status === 'critico').length;
+  const totalCriticos = integrantes.reduce((acc, i) => acc + criticos(i), 0);
+
+  // Periodo de referencia: el de la primera dimensión que traiga fechas.
+  const periodo = integrantes
+    .flatMap((i) => i.dimensiones)
+    .find((d) => d.periodo?.start_date && d.periodo?.end_date)?.periodo;
+
+  const alternar = (id: number) => setAbiertas((prev) => ({ ...prev, [id]: !prev[id] }));
 
   return (
     <div className="page">
       <PageHead
         title="Mi equipo"
-        subtitle="Vista de líder. Desempeño individual de cada integrante y del equipo."
+        subtitle="Vista de líder. Resultados de cada integrante y del equipo."
         pill="Líder de equipo"
       />
 
@@ -65,23 +148,27 @@ export const LiderView: React.FC = () => {
             <div>
               <h3 className="card-title">Resumen del equipo</h3>
             </div>
-            <div className="card-tag">Métrica</div>
+            <div className="card-tag">Semana</div>
           </div>
-          <div className="connrow">
-            <RingProgress
-              value={metricaLider}
-              color={colorPuntaje(metricaLider)}
-              label={metricaLider}
-              sub="equipo"
-            />
-            <div className="txt">
-              <div className="k">Métrica del equipo</div>
-              <div className="v">{integrantes.length} integrantes</div>
-              <div className="s">Apoya tu decisión, no decide por ti.</div>
+          <div className="stats">
+            <div className="stat">
+              <div className="k">Integrantes</div>
+              <div className="v">{integrantes.length}</div>
+            </div>
+            <div className="stat">
+              <div className="k">Con analítica</div>
+              <div className="v">{integrantesConAnalitica}</div>
+            </div>
+            <div className="stat">
+              <div className="k">Dimensiones críticas</div>
+              <div className="v">{totalCriticos}</div>
             </div>
           </div>
           <div className="card-foot">
-            Media geométrica de las cinco dimensiones. Una dimensión floja pesa en el resultado.
+            {periodo
+              ? `Periodo: ${fmtFecha(periodo.start_date)} al ${fmtFecha(periodo.end_date)}. `
+              : ''}
+            Apoya tu decisión, no decide por ti.
           </div>
         </div>
 
@@ -97,36 +184,24 @@ export const LiderView: React.FC = () => {
             </div>
             <div className="card-tag">SPACE</div>
           </div>
-          <RadarChart agregadoDimensiones={agregadoDims} />
-          <div className="card-foot">Promedio del equipo por dimensión, de 0 a 100.</div>
-        </div>
-
-        {/* Card 3: Patrones temporales */}
-        <div className="card span2" id="card-temporal" style={{ '--i': 2 } as React.CSSProperties}>
-          <div className="card-head">
-            <div className="icon-chip">
-              <BarChart3 size={22} />
-            </div>
-            <div>
-              <h3 className="card-title">Patrones temporales</h3>
-              <div className="card-sub">Fatiga y ánimo del equipo por día (microencuesta)</div>
-            </div>
-            <div className="card-tag">Correlación S</div>
-          </div>
-          {serieAnimo.length > 0 ? (
+          {agregado ? (
             <>
-              <TemporalChart serieAnimo={serieAnimo} />
+              <RadarChart agregadoDimensiones={mapaAgregado} max={10} />
               <div className="card-foot">
-                Doble eje: barras de fatiga (1 a 5) y líneas de ánimo y flujo. Cuando la fatiga sube hacia el final del período, el ánimo suele bajar.
+                Promedio del equipo por dimensión, de 0 a 10. Las dimensiones sin datos se dibujan
+                en 0.
               </div>
             </>
           ) : (
-            <p className="lead">Aún no hay microencuestas suficientes en el período para trazar el patrón.</p>
+            <p className="lead">
+              Todavía no hay resultados de analítica para tu equipo. Aparecen cuando la analítica
+              procesa la semana.
+            </p>
           )}
         </div>
 
-        {/* Card 4: Actividad general del equipo */}
-        <div className="card span2" style={{ '--i': 3 } as React.CSSProperties}>
+        {/* Card 3: Tabla del equipo */}
+        <div className="card span2" id="card-actividad" style={{ '--i': 2 } as React.CSSProperties}>
           <div className="card-head">
             <div className="icon-chip">
               <Users size={22} />
@@ -134,143 +209,120 @@ export const LiderView: React.FC = () => {
             <div>
               <h3 className="card-title">Actividad general del equipo</h3>
               <div className="card-sub">
-                Toca una fila para ver el desglose. Color según el diccionario de umbrales
+                Toca una fila para ver el detalle de la persona. El color lo define la analítica.
               </div>
             </div>
           </div>
-          <div className="tablewrap">
-            <table className="tabla">
-              <thead>
-                <tr>
-                  <th>Integrante</th>
-                  <th>Métrica</th>
-                  {ORDEN_DIMENSIONES.map((d) => (
-                    <th key={d}>{d}</th>
-                  ))}
-                  <th>Contexto (T · Conex · Extra)</th>
-                  <th>Revisar</th>
-                </tr>
-              </thead>
-              <tbody>
-                {integrantes.map((i, idx) => {
-                  const c = i.contexto || {};
-                  const flags = (i.banderas || []).length;
-                  const isOpen = !!openRows[idx];
-                  const dims = i.dimensiones || { S: 0, P: 0, A: 0, C: 0, E: 0 };
-                  const u = i.usuario || { id: `${idx}`, nombre: 'Integrante', arquetipo: 'equipo' };
 
-                  return (
-                    <React.Fragment key={u.id || idx}>
-                      <tr
-                        className={`filarow ${isOpen ? 'open' : ''}`}
-                        onClick={() => toggleRow(idx)}
-                      >
-                        <td>
-                          <div className="idcell">
-                            <span className="ava sm">{iniciales(u.nombre)}</span>
-                            <div>
-                              <b>{u.nombre}</b>
-                              <span>{u.arquetipo || 'equipo'}</span>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="numcell">
-                          <span className="score">{i.compuesto ?? 0}</span>
-                        </td>
-                        {ORDEN_DIMENSIONES.map((d) => (
-                          <td key={d} className="numcell">
-                            <SemaphoreChip
-                              level={nivelPuntaje(dims[d])}
-                              text={dims[d]}
-                            />
-                          </td>
-                        ))}
-                        <td className="ctxcell">
-                          <SemaphoreChip
-                            level={nivelTemperatura(c.temperatura)}
-                            text={c.temperatura != null ? `${c.temperatura}°` : '—'}
-                          />{' '}
-                          <SemaphoreChip
-                            level={nivelConexion(c.calidad_conexion)}
-                            text={c.calidad_conexion != null ? c.calidad_conexion : '—'}
-                          />{' '}
-                          <SemaphoreChip
-                            level={nivelExtralaboral(c.extralaboral_pct)}
-                            text={
-                              c.extralaboral_pct != null
-                                ? `${c.extralaboral_pct > 0 ? '+' : ''}${c.extralaboral_pct}%`
-                                : '—'
-                            }
-                          />
-                        </td>
-                        <td className="numcell">
-                          {flags ? (
-                            <span className="chip warn">{flags}</span>
-                          ) : (
-                            <span className="chip ok">0</span>
-                          )}
-                          <span className="chev">
-                            <ChevronDown size={16} />
-                          </span>
-                        </td>
-                      </tr>
-                      {isOpen && (
-                        <tr className="filadetail">
-                          <td colSpan={9}>
-                            <SpaceDims dimensiones={dims} />
-                            <div className="ctx">
-                              Contexto, no puntúa: temperatura {c.temperatura ?? '—'} °C, conexión{' '}
-                              {c.calidad_conexion ?? '—'}/100, tiempo extralaboral{' '}
-                              {c.extralaboral_pct == null
-                                ? '—'
-                                : `${c.extralaboral_pct > 0 ? '+' : ''}${c.extralaboral_pct}%`}
-                              . Cobertura: {i.cobertura ?? 0}/5 dimensiones con datos.
-                            </div>
-                            {(i.banderas || []).map((b, bIdx) => (
-                              <div key={bIdx} className="pregunta">
-                                {b}
+          {integrantes.length === 0 ? (
+            <p className="lead">No tienes integrantes asignados a tu equipo.</p>
+          ) : (
+            <div className="tablewrap">
+              <table className="tabla">
+                <thead>
+                  <tr>
+                    <th>Integrante</th>
+                    {ORDEN_DIMENSIONES.map((d) => (
+                      <th key={d} title={DIMN[d]}>
+                        {d}
+                      </th>
+                    ))}
+                    <th>Revisar</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {integrantes.map((i) => {
+                    const id = i.usuario.id;
+                    const abierta = !!abiertas[id];
+                    const nCriticos = criticos(i);
+                    const nombre = nombreUsuario(i.usuario);
+                    return (
+                      <React.Fragment key={id}>
+                        <tr
+                          className={`filarow ${abierta ? 'open' : ''}`}
+                          onClick={() => alternar(id)}
+                        >
+                          <td>
+                            <div className="idcell">
+                              <span className="ava sm">{iniciales(nombre)}</span>
+                              <div>
+                                <b>{nombre}</b>
+                                <span>{i.usuario.username}</span>
                               </div>
-                            ))}
+                            </div>
+                          </td>
+                          {ORDEN_DIMENSIONES.map((d) => {
+                            const dim = dimensionDe(i, d);
+                            return (
+                              <td key={d} className="numcell">
+                                <SemaphoreChip
+                                  level={nivelCriticidad(dim?.criticality_status)}
+                                  text={fmt(dim?.normalized_score)}
+                                />
+                              </td>
+                            );
+                          })}
+                          <td className="numcell">
+                            {nCriticos > 0 ? (
+                              <span className="chip warn">{nCriticos}</span>
+                            ) : (
+                              <span className="chip ok">0</span>
+                            )}
+                            <span className="chev">
+                              <ChevronDown size={16} />
+                            </span>
                           </td>
                         </tr>
-                      )}
-                    </React.Fragment>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                        {abierta && (
+                          <tr className="filadetail">
+                            <td colSpan={7}>
+                              <DetallePersona rutaBase="/api/equipo/integrantes" personaId={id} />
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
           <div className="leyenda">
-            <SemaphoreChip level="ok" text="Óptimo" />{' '}
-            <SemaphoreChip level="warn" text="Precaución" />{' '}
-            <SemaphoreChip level="bad" text="Crítico" />{' '}
-            <span className="leyenda-nota">
-              Las columnas S·P·A·C·E van de 0 a 100; el contexto usa los umbrales del diccionario.
-            </span>
+            <SemaphoreChip level="ok" text="Óptimo (8 a 10)" />{' '}
+            <SemaphoreChip level="warn" text="Precaución (6 a 7,9)" />{' '}
+            <SemaphoreChip level="bad" text="Crítico (menos de 6)" />{' '}
+            <SemaphoreChip level="none" text="Sin dato" />
           </div>
         </div>
 
-        {/* Card 5: Preguntas para revisar */}
-        {preguntasParaElLider.length > 0 && (
-          <div className="card span2" id="card-preguntas" style={{ '--i': 4 } as React.CSSProperties}>
-            <div className="card-head">
-              <div className="icon-chip green">
-                <Shield size={22} />
-              </div>
-              <div>
-                <h3 className="card-title">Preguntas para revisar</h3>
-                <div className="card-sub">Patrones para conversar, no sanciones</div>
+        {/* Card 4: Conectividad del equipo */}
+        <div
+          className="card span2"
+          id="card-conectividad"
+          style={{ '--i': 3 } as React.CSSProperties}
+        >
+          <div className="card-head">
+            <div className="icon-chip">
+              <Wifi size={22} />
+            </div>
+            <div>
+              <h3 className="card-title">Conectividad del equipo</h3>
+              <div className="card-sub">
+                Última medición de red por integrante. Solo lectura.
               </div>
             </div>
-            {preguntasParaElLider.map((q, qIdx) =>
-              (q.preguntas || []).map((t, tIdx) => (
-                <div key={`${qIdx}-${tIdx}`} className="pregunta">
-                  <b>{q.integrante}:</b> {t}
-                </div>
-              ))
-            )}
+            <div className="card-tag">Red</div>
           </div>
-        )}
+          {errorConectividad ? (
+            <p className="error">{errorConectividad}</p>
+          ) : (
+            <TablaConectividad
+              fuentes={conectividad?.fuentes ?? []}
+              vacio="No hay fuentes de red registradas para tu equipo."
+            />
+          )}
+        </div>
       </div>
     </div>
   );

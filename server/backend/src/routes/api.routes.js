@@ -204,6 +204,15 @@ router.get('/equipo/conectividad', soloLider, async (req, res, next) => {
   }
 });
 
+// Historial de analitica de un integrante del equipo (graficas por dimension y por metrica).
+router.get('/equipo/integrantes/:id/analitica', soloLider, async (req, res, next) => {
+  try {
+    await liderController.analiticaIntegrante(req, res);
+  } catch (err) {
+    next(err);
+  }
+});
+
 // --- Rutas del gerente ---
 
 router.get('/organizacion', soloGerente, async (req, res, next) => {
@@ -225,6 +234,15 @@ router.get(
     }
   }
 );
+
+// Historial de analitica de un integrante de cualquier equipo de su organizacion.
+router.get('/organizacion/integrantes/:id/analitica', soloGerente, async (req, res, next) => {
+  try {
+    await gerenteController.analiticaIntegrante(req, res);
+  } catch (err) {
+    next(err);
+  }
+});
 
 // --- Rutas de operacion del gerente ---
 

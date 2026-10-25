@@ -133,6 +133,7 @@ def puntajes_diarios(usuario_id: int, desde: date, hasta: date) -> dict[str, lis
     """{dimension: [{"metrica", "valor_normalizado"}]} con el puntaje promedio de cada métrica diaria guardada
     entre `desde` y `hasta` (filas de un solo día). Cada métrica cuenta una vez, sin importar cuántos días tuvo datos."""
     stmt = select(metric_analyses.c.metric_name, metric_analyses.c.normalized_value).where(
+        metric_analyses.c.metric_name.in_(list(METRICA_DIMENSION)),  # filas con métricas ajenas al catálogo se ignoran
         metric_analyses.c.user_id == usuario_id,
         metric_analyses.c.start_date >= desde,
         metric_analyses.c.end_date <= hasta,
@@ -168,7 +169,7 @@ def cargar_muestras_metricas(desde: date | None = None, hasta: date | None = Non
         metric_analyses.c.end_date.label("fecha_fin"),
         metric_analyses.c.metric_name.label("nombre_metrica"),
         metric_analyses.c.raw_value.label("valor_crudo"),
-    )
+    ).where(metric_analyses.c.metric_name.in_(list(METRICA_DIMENSION)))  # solo las 28 métricas del catálogo
     if desde:
         stmt = stmt.where(metric_analyses.c.start_date >= desde)
     if hasta:

@@ -4,9 +4,11 @@ import { DIMN, ORDEN_DIMENSIONES, type DimensionesMap } from '../../types';
 
 interface RadarChartProps {
   agregadoDimensiones?: DimensionesMap;
+  // Máximo de la escala del radar. 100 por defecto; el tablero del líder usa 10.
+  max?: number;
 }
 
-export const RadarChart: React.FC<RadarChartProps> = ({ agregadoDimensiones }) => {
+export const RadarChart: React.FC<RadarChartProps> = ({ agregadoDimensiones, max = 100 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const chartRef = useRef<InstanceType<typeof ChartJS> | null>(null);
 
@@ -44,8 +46,8 @@ export const RadarChart: React.FC<RadarChartProps> = ({ agregadoDimensiones }) =
         scales: {
           r: {
             min: 0,
-            max: 100,
-            ticks: { stepSize: 25, backdropColor: 'transparent' },
+            max,
+            ticks: { stepSize: max / 4, backdropColor: 'transparent' },
             grid: { color: CHART_COLORS.grid },
             pointLabels: { font: { size: 10 } },
           },
@@ -60,7 +62,7 @@ export const RadarChart: React.FC<RadarChartProps> = ({ agregadoDimensiones }) =
       chartRef.current?.destroy();
       chartRef.current = null;
     };
-  }, [agregadoDimensiones]);
+  }, [agregadoDimensiones, max]);
 
   return (
     <div className="chart-box">

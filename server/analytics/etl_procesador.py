@@ -13,6 +13,7 @@ def etl_cierre_dia():
     from etl import cierre_dia  # import tardío: etl importa pipeline, que importa este módulo
     dia = date.today() - timedelta(days=1)
     print(f"[{datetime.now()}] Cierre de día {dia}: {len(cierre_dia(dia))} usuarios analizados.")
+    _refrescar_correlaciones()
 
 def etl_cierre_ciclo():
     """Ejecución semanal (lunes 00:10): métricas semanales y por sprint de la semana que terminó."""
@@ -21,6 +22,18 @@ def etl_cierre_ciclo():
     hoy = date.today()
     lunes = hoy - timedelta(days=hoy.weekday() + 7)
     print(f"[{datetime.now()}] Cierre de ciclo {lunes}: {len(cierre_ciclo(lunes))} usuarios analizados.")
+    _refrescar_correlaciones()
+
+def _refrescar_correlaciones():
+    """Recalcula la caché que consulta el backend una vez guardados los datos del cierre. Si falla, la caché anterior
+    sigue sirviéndose y el error queda en el log."""
+    import traceback
+    import cache_correlaciones  # import tardío: cache_correlaciones importa db, que importa este módulo
+    try:
+        cache_correlaciones.recalcular()
+        print(f"[{datetime.now()}] Correlaciones recalculadas.")
+    except Exception:
+        print(f"[{datetime.now()}] No se pudieron recalcular las correlaciones:\n{traceback.format_exc()}")
 
 
 # ==========================================
