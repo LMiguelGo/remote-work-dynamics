@@ -1,192 +1,144 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Cpu, Wifi, Activity, Shield, Settings, BarChart3 } from 'lucide-react';
-import { api } from '../services/api';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Cpu, Wifi, Settings } from 'lucide-react';
+import { api, ApiError } from '../services/api';
+import type {
+  RespuestaConectividad,
+  RespuestaConfigOperacion,
+  RespuestaDispositivos,
+  SemaphoreLevel,
+} from '../types';
 import { PageHead } from '../components/PageHead';
 import { SemaphoreChip } from '../components/SemaphoreChip';
-import { BandChart } from '../components/charts/BandChart';
-import { CHART_COLORS, type AlertBand } from '../components/charts/chartSetup';
-import {
-  fmtHora,
-  nivelTemperatura,
-  nivelHumedad,
-  nivelRuido,
-  nivelConexion,
-} from '../utils/helpers';
-import type { SemaphoreLevel } from '../types';
+import { fmtHora } from '../utils/helpers';
 
-interface DispositivoItem {
-  dispositivo: string;
-  descripcion: string;
-  asignadoA: string;
-  estado: 'en vivo' | 'con historial' | 'inactivo';
-  ultimaLectura: string | null;
-  lecturas: {
-    temperatura?: { valor: number | null; ts: string };
-    humedad?: { valor: number | null; ts: string };
-    ruido?: { valor: number | null; ts: string };
-    calidad_conexion?: { valor: number | null; ts: string };
-  };
+const REFRESCO_MS = 30000;
+
+function nivelEstado(estado: string): SemaphoreLevel {
+  if (estado === 'en vivo' || estado === 'con datos') return 'ok';
+  if (estado === 'con historial') return 'warn';
+  return 'none';
 }
 
-interface EventoItem {
-  ts: string;
-  usuario: string;
-  tipo: 'conexion' | 'sensor';
-  mensaje: string;
+function num(v: number | null | undefined, decimales = 0): string {
+  return v == null ? '—' : v.toFixed(decimales);
 }
 
-interface ConectividadData {
-  serie: {
-    bandas: {
-      calidad_conexion: { optimo: number; precaucion: number; critico: number };
-      temperatura: { optimo: [number, number]; precaucion: [number, number] };
-    };
-    calidad_conexion: Array<{ ts: string; valor: number }>;
-    temperatura: Array<{ ts: string; valor: number }>;
-  };
-  eventos: EventoItem[];
-  ts: string;
+function nombreDueno(d: { username: string | null; full_name: string | null }): string {
+  return d.full_name?.trim() || d.username || 'Sin asignar';
 }
 
-interface SaludData {
-  estado: string;
-  base: string;
-  conectores: Array<{ nombre: string; estado: string; ultimaIngesta: string | null }>;
-}
-
-interface ConfigData {
-  intervaloSegundos: number;
-  diccionario: Array<{
-    dimension: string;
-    metrica: string;
-    optimo: string;
-    precaucion: string;
-    critico: string;
-  }>;
-}
-
-function bandasConexion(b: { optimo: number; precaucion: number; critico: number }): AlertBand[] {
-  if (!b) return [];
-  return [
-    { from: 0, to: b.critico, color: 'rgba(239,68,68,.10)' },
-    { from: b.critico, to: b.precaucion, color: 'rgba(245,158,11,.10)' },
-    { from: b.precaucion, to: 100, color: 'rgba(22,163,74,.10)' },
-  ];
-}
-
-function bandasTemp(b: { optimo: [number, number]; precaucion: [number, number] }): AlertBand[] {
-  if (!b || !b.optimo || !b.precaucion) return [];
-  const [oA, oB] = b.optimo;
-  const [pA, pB] = b.precaucion;
-  return [
-    { from: 0, to: pA, color: 'rgba(239,68,68,.10)' },
-    { from: pA, to: oA, color: 'rgba(245,158,11,.10)' },
-    { from: oA, to: oB, color: 'rgba(22,163,74,.10)' },
-    { from: oB, to: pB, color: 'rgba(245,158,11,.10)' },
-    { from: pB, to: 50, color: 'rgba(239,68,68,.10)' },
-  ];
+function mensajes(err: unknown): string[] {
+  if (err instanceof ApiError && err.detalles?.length) return err.detalles;
+  return [err instanceof Error ? err.message : 'Ocurrió un error inesperado'];
 }
 
 export const OperacionView: React.FC = () => {
-  const [config, setConfig] = useState<ConfigData | null>(null);
-  const [dispositivos, setDispositivos] = useState<DispositivoItem[]>([]);
-  const [conectividad, setConectividad] = useState<ConectividadData | null>(null);
-  const [salud, setSalud] = useState<SaludData | null>(null);
+  const [dispositivos, setDispositivos] = useState<RespuestaDispositivos | null>(null);
+  const [conectividad, setConectividad] = useState<RespuestaConectividad | null>(null);
+  const [config, setConfig] = useState<RespuestaConfigOperacion | null>(null);
   const [cargando, setCargando] = useState(true);
-  const [lastPollTime, setLastPollTime] = useState<string>(new Date().toLocaleTimeString());
+  const [errorCarga, setErrorCarga] = useState<string | null>(null);
 
-  // Input config
-  const [intervaloInput, setIntervaloInput] = useState<number>(5);
-  const [cfgOk, setCfgOk] = useState(false);
-  const pollTimerRef = useRef<number | null>(null);
+  // Formulario de configuración (texto, para permitir vacío mientras se escribe).
+  const [umbralVivo, setUmbralVivo] = useState('');
+  const [retencion, setRetencion] = useState('');
+  const [guardando, setGuardando] = useState(false);
+  const [guardado, setGuardado] = useState(false);
+  const [erroresConfig, setErroresConfig] = useState<string[]>([]);
 
-  const fetchTodo = async () => {
+  // `inicial` carga también el formulario; el refresco automático no lo pisa.
+  const cargar = useCallback(async (inicial: boolean) => {
     try {
-      const [cfgRes, dzRes, cnRes, slRes] = await Promise.all([
-        api<ConfigData>('/api/operacion/config'),
-        api<{ dispositivos: DispositivoItem[] }>('/api/operacion/dispositivos'),
-        api<ConectividadData>('/api/operacion/conectividad'),
-        api<SaludData>('/api/salud'),
+      const [d, c, cfg] = await Promise.all([
+        api<RespuestaDispositivos>('/api/operacion/dispositivos'),
+        api<RespuestaConectividad>('/api/operacion/conectividad'),
+        api<RespuestaConfigOperacion>('/api/operacion/config'),
       ]);
-      setConfig(cfgRes);
-      setIntervaloInput(cfgRes.intervaloSegundos || 5);
-      setDispositivos(dzRes.dispositivos);
-      setConectividad(cnRes);
-      setSalud(slRes);
-      setLastPollTime(new Date().toLocaleTimeString());
+      setDispositivos(d);
+      setConectividad(c);
+      setConfig(cfg);
+      if (inicial) {
+        setUmbralVivo(String(cfg.config.umbral_en_vivo_segundos));
+        setRetencion(String(cfg.config.ventana_retencion_dias));
+      }
+      setErrorCarga(null);
     } catch (err) {
-      console.error(err);
+      // 401 y debe_cambiar_clave ya los resuelve AuthContext.
+      setErrorCarga(mensajes(err)[0]);
     } finally {
       setCargando(false);
     }
-  };
-
-  const tick = async () => {
-    try {
-      const [dz2, cn2] = await Promise.all([
-        api<{ dispositivos: DispositivoItem[] }>('/api/operacion/dispositivos'),
-        api<ConectividadData>('/api/operacion/conectividad'),
-      ]);
-      setDispositivos(dz2.dispositivos);
-      setConectividad(cn2);
-      setLastPollTime(new Date().toLocaleTimeString());
-    } catch (err) {
-      console.error('Error polling telemetría:', err);
-    }
-  };
-
-  const startPolling = (intervalSecs: number) => {
-    if (pollTimerRef.current) {
-      clearInterval(pollTimerRef.current);
-    }
-    const ms = Math.max(2, intervalSecs) * 1000;
-    pollTimerRef.current = window.setInterval(tick, ms);
-  };
-
-  useEffect(() => {
-    fetchTodo().then(() => {
-      startPolling(5);
-    });
-
-    return () => {
-      if (pollTimerRef.current) {
-        clearInterval(pollTimerRef.current);
-      }
-    };
   }, []);
 
-  const handleGuardarConfig = async () => {
-    try {
-      const nueva = await api<{ intervaloSegundos: number }>('/api/operacion/config', {
-        method: 'PUT',
-        body: JSON.stringify({ intervaloSegundos: Number(intervaloInput) }),
-      });
-      setIntervaloInput(nueva.intervaloSegundos);
-      setCfgOk(true);
-      setTimeout(() => setCfgOk(false), 4000);
-      startPolling(nueva.intervaloSegundos);
-    } catch (err) {
-      console.error(err);
-    }
-  };
+  useEffect(() => {
+    void cargar(true);
+    const t = setInterval(() => void cargar(false), REFRESCO_MS);
+    return () => clearInterval(t);
+  }, [cargar]);
 
-  if (cargando || !config || !conectividad || !salud) {
-    return <div className="page"><p className="lead">Cargando panel de operación...</p></div>;
+  if (cargando) {
+    return (
+      <div className="page">
+        <p className="lead">Cargando operación...</p>
+      </div>
+    );
   }
 
-  const bConn = conectividad.serie?.bandas?.calidad_conexion;
-  const bTemp = conectividad.serie?.bandas?.temperatura;
+  if (!dispositivos || !conectividad || !config) {
+    return (
+      <div className="page">
+        <p className="error">{errorCarga ?? 'No se pudo cargar la operación.'}</p>
+        <button className="btn" onClick={() => void cargar(true)}>
+          Reintentar
+        </button>
+      </div>
+    );
+  }
+
+  const enVivo = dispositivos.dispositivos.filter((d) => d.estado === 'en vivo').length;
+  const sinDatos = dispositivos.dispositivos.filter((d) => d.estado === 'sin datos').length;
+
+  const umbralNum = Number(umbralVivo);
+  const retencionNum = Number(retencion);
+  const configValida =
+    umbralVivo.trim() !== '' &&
+    retencion.trim() !== '' &&
+    Number.isInteger(umbralNum) &&
+    umbralNum > 0 &&
+    Number.isInteger(retencionNum) &&
+    retencionNum > 0;
+
+  const handleGuardar = async () => {
+    setErroresConfig([]);
+    setGuardando(true);
+    try {
+      await api('/api/operacion/config', {
+        method: 'PUT',
+        body: JSON.stringify({
+          umbral_en_vivo_segundos: umbralNum,
+          ventana_retencion_dias: retencionNum,
+        }),
+      });
+      await cargar(true);
+      setGuardado(true);
+      setTimeout(() => setGuardado(false), 4000);
+    } catch (err) {
+      setErroresConfig(mensajes(err));
+    } finally {
+      setGuardando(false);
+    }
+  };
 
   return (
     <div className="page">
       <PageHead
-        title="Operación y dispositivos"
-        subtitle="Panel administrativo. Estado de la infraestructura telemática, sin exponer la productividad de ninguna persona."
+        title="Operación"
+        subtitle="Vista de gerente. Estado de las fuentes de datos y de la red del equipo."
         pill="Gerente"
       />
 
       <div className="grid">
-        {/* Card 1: Estado de dispositivos */}
+        {/* Card 1: Dispositivos */}
         <div className="card span2" style={{ '--i': 0 } as React.CSSProperties}>
           <div className="card-head">
             <div className="icon-chip">
@@ -194,192 +146,117 @@ export const OperacionView: React.FC = () => {
             </div>
             <div>
               <h3 className="card-title">Estado de dispositivos</h3>
-              <div className="card-sub">Sensores y su última lectura · se refresca solo</div>
+              <div className="card-sub">
+                {dispositivos.dispositivos.length} fuentes · {enVivo} en vivo · {sinDatos} sin datos
+                · se actualiza cada 30 s
+              </div>
             </div>
-            <div className="card-tag">En vivo</div>
+            <div className="card-tag">Fuentes</div>
           </div>
-          <div className="tablewrap">
-            <table className="tabla">
-              <thead>
-                <tr>
-                  <th>Dispositivo</th>
-                  <th>Asignado a</th>
-                  <th>Estado</th>
-                  <th>Temp</th>
-                  <th>Humedad</th>
-                  <th>Ruido</th>
-                  <th>Conexión</th>
-                  <th>Última lectura</th>
-                </tr>
-              </thead>
-              <tbody>
-                {dispositivos.map((d) => {
-                  const t = d.lecturas?.temperatura?.valor ?? null;
-                  const h = d.lecturas?.humedad?.valor ?? null;
-                  const r = d.lecturas?.ruido?.valor ?? null;
-                  const c = d.lecturas?.calidad_conexion?.valor ?? null;
 
-                  const estadoClase: SemaphoreLevel =
-                    d.estado === 'en vivo' ? 'ok' : d.estado === 'con historial' ? 'warn' : 'bad';
-
-                  return (
-                    <tr key={d.dispositivo}>
+          {dispositivos.dispositivos.length === 0 ? (
+            <p className="lead">No hay fuentes de datos registradas.</p>
+          ) : (
+            <div className="tablewrap">
+              <table className="tabla">
+                <thead>
+                  <tr>
+                    <th>Fuente</th>
+                    <th>Tipo</th>
+                    <th>Asignada a</th>
+                    <th>Estado</th>
+                    <th>Última actividad</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {dispositivos.dispositivos.map((d) => (
+                    <tr key={d.id}>
                       <td>
-                        <div className="idcell">
-                          <span className="ava sm">
-                            <Cpu size={16} />
-                          </span>
-                          <div>
-                            <b>{d.dispositivo}</b>
-                            <span>{d.descripcion}</span>
-                          </div>
-                        </div>
+                        <b>{d.identifier}</b>
                       </td>
-                      <td>{d.asignadoA}</td>
+                      <td>{d.source_type}</td>
+                      <td>{nombreDueno(d.dueno)}</td>
                       <td>
-                        <SemaphoreChip level={estadoClase} text={d.estado} />
+                        <SemaphoreChip level={nivelEstado(d.estado)} text={d.estado} />
                       </td>
-                      <td className="numcell">
-                        <SemaphoreChip
-                          level={nivelTemperatura(t)}
-                          text={t != null ? `${t}°` : '—'}
-                        />
-                      </td>
-                      <td className="numcell">
-                        <SemaphoreChip level={nivelHumedad(h)} text={h != null ? `${h}%` : '—'} />
-                      </td>
-                      <td className="numcell">
-                        <SemaphoreChip level={nivelRuido(r)} text={r != null ? `${r} dB` : '—'} />
-                      </td>
-                      <td className="numcell">
-                        <SemaphoreChip level={nivelConexion(c)} text={c != null ? c : '—'} />
-                      </td>
-                      <td className="tsmall">{fmtHora(d.ultimaLectura)}</td>
+                      <td>{fmtHora(d.ultima_actividad)}</td>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
           <div className="card-foot">
-            Actualizado: <span>{lastPollTime}</span> · intervalo {intervaloInput}s
+            «En vivo» significa actividad en los últimos {dispositivos.umbral_en_vivo_segundos}{' '}
+            segundos. Última consulta: {fmtHora(dispositivos.generado_en)}.
           </div>
         </div>
 
-        {/* Card 2: Eventos de conectividad (dual chart) */}
+        {/* Card 2: Conectividad */}
         <div className="card span2" style={{ '--i': 1 } as React.CSSProperties}>
           <div className="card-head">
             <div className="icon-chip">
               <Wifi size={22} />
             </div>
             <div>
-              <h3 className="card-title">Eventos de conectividad</h3>
-              <div className="card-sub">Calidad de conexión y temperatura con franjas de alerta</div>
+              <h3 className="card-title">Conectividad</h3>
+              <div className="card-sub">Última medición de red e interrupciones por fuente</div>
             </div>
-            <div className="card-tag">Tiempo real</div>
+            <div className="card-tag">Red</div>
           </div>
-          <div className="dualchart">
-            <BandChart
-              label="Calidad de conexión (/100)"
-              points={conectividad.serie.calidad_conexion}
-              bands={bandasConexion(bConn)}
-              color={CHART_COLORS.blue}
-              minY={0}
-              maxY={100}
-            />
-            <BandChart
-              label="Temperatura (°C)"
-              points={conectividad.serie.temperatura}
-              bands={bandasTemp(bTemp)}
-              color={CHART_COLORS.amber}
-              minY={10}
-              maxY={35}
-            />
-          </div>
-          <div className="leyenda" style={{ marginTop: '6px' }}>
-            <SemaphoreChip level="ok" text="Óptimo" />{' '}
-            <SemaphoreChip level="warn" text="Precaución" />{' '}
-            <SemaphoreChip level="bad" text="Crítico" />{' '}
-            <span className="leyenda-nota">Las franjas salen de los umbrales del diccionario.</span>
-          </div>
-        </div>
 
-        {/* Card 3: Alertas de contexto recientes */}
-        <div className="card span2" style={{ '--i': 2 } as React.CSSProperties}>
-          <div className="card-head">
-            <div className="icon-chip green">
-              <Activity size={22} />
-            </div>
-            <div>
-              <h3 className="card-title">Alertas de contexto recientes</h3>
-              <div className="card-sub">Lecturas que rebasaron un umbral</div>
-            </div>
-          </div>
-          <div className="tablewrap">
-            <table className="tabla">
-              <thead>
-                <tr>
-                  <th>Cuándo</th>
-                  <th>Quién · tipo</th>
-                  <th>Detalle</th>
-                </tr>
-              </thead>
-              <tbody>
-                {conectividad.eventos.length > 0 ? (
-                  conectividad.eventos.map((ev, i) => (
-                    <tr key={i}>
-                      <td className="tsmall">{fmtHora(ev.ts)}</td>
-                      <td>
-                        {ev.usuario}{' '}
-                        <SemaphoreChip
-                          level={ev.tipo === 'conexion' ? 'bad' : 'warn'}
-                          text={ev.tipo}
-                        />
-                      </td>
-                      <td>{ev.mensaje}</td>
-                    </tr>
-                  ))
-                ) : (
+          {conectividad.fuentes.length === 0 ? (
+            <p className="lead">
+              No hay fuentes de red registradas. Cuando existan, aquí aparecerán su latencia,
+              velocidad e interrupciones.
+            </p>
+          ) : (
+            <div className="tablewrap">
+              <table className="tabla">
+                <thead>
                   <tr>
-                    <td colSpan={3}>Sin eventos recientes.</td>
+                    <th>Fuente</th>
+                    <th>Estado</th>
+                    <th>Latencia (ms)</th>
+                    <th>Bajada (Mbps)</th>
+                    <th>Subida (Mbps)</th>
+                    <th>Pérdida (%)</th>
+                    <th>Interrupciones</th>
+                    <th>Medición</th>
                   </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {conectividad.fuentes.map((f) => (
+                    <tr key={f.id}>
+                      <td>
+                        <b>{nombreDueno(f.dueno)}</b>
+                        <div className="card-foot">{f.identifier}</div>
+                      </td>
+                      <td>
+                        <SemaphoreChip level={nivelEstado(f.estado)} text={f.estado} />
+                      </td>
+                      <td>{num(f.qos?.latency_ms)}</td>
+                      <td>{num(f.qos?.download_speed_mbps, 1)}</td>
+                      <td>{num(f.qos?.upload_speed_mbps, 1)}</td>
+                      <td>{num(f.qos?.packet_loss_percentage, 1)}</td>
+                      <td>
+                        {f.interrupcion
+                          ? `${num(f.interrupcion.interruption_count)} (${num(
+                              f.interrupcion.interruption_duration_seconds,
+                            )} s)`
+                          : '—'}
+                      </td>
+                      <td>{fmtHora(f.qos?.time ?? f.interrupcion?.time)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
 
-        {/* Card 4: Salud de conectores */}
-        <div className="card" style={{ '--i': 3 } as React.CSSProperties}>
-          <div className="card-head">
-            <div className="icon-chip">
-              <Shield size={22} />
-            </div>
-            <div>
-              <h3 className="card-title">Salud de conectores</h3>
-              <div className="card-sub">RNF-05</div>
-            </div>
-          </div>
-          <div className="conectores">
-            {salud.conectores.map((c) => (
-              <div key={c.nombre} className="conector">
-                <span className={`dot ${c.estado === 'activo' ? '' : 'amber'}`} />
-                <b>{c.nombre}</b>{' '}
-                <SemaphoreChip
-                  level={c.estado === 'activo' ? 'ok' : 'bad'}
-                  text={c.estado}
-                />
-                <span className="tsmall">{fmtHora(c.ultimaIngesta)}</span>
-              </div>
-            ))}
-          </div>
-          <div className="card-foot">
-            Base: {salud.base} · estado general: {salud.estado}
-          </div>
-        </div>
-
-        {/* Card 5: Configuración de monitoreo */}
-        <div className="card" style={{ '--i': 4 } as React.CSSProperties}>
+        {/* Card 3: Configuración */}
+        <div className="card" style={{ '--i': 2 } as React.CSSProperties}>
           <div className="card-head">
             <div className="icon-chip">
               <Settings size={22} />
@@ -387,72 +264,46 @@ export const OperacionView: React.FC = () => {
             <div>
               <h3 className="card-title">Configuración de monitoreo</h3>
             </div>
-            <div className="card-tag">Admin</div>
+            <div className="card-tag">Gerente</div>
           </div>
           <div className="field">
-            <label>Intervalo de muestreo en vivo (segundos)</label>
+            <label htmlFor="cfg-vivo">Ventana «en vivo» (segundos)</label>
             <input
+              id="cfg-vivo"
               type="number"
-              min={2}
-              max={60}
-              value={intervaloInput}
-              onChange={(e) => setIntervaloInput(Number(e.target.value))}
+              min={1}
+              value={umbralVivo}
+              onChange={(e) => setUmbralVivo(e.target.value)}
             />
           </div>
-          <button className="btn" onClick={handleGuardarConfig}>
-            Guardar
+          <div className="field">
+            <label htmlFor="cfg-ret">Retención visible de eventos (días)</label>
+            <input
+              id="cfg-ret"
+              type="number"
+              min={1}
+              value={retencion}
+              onChange={(e) => setRetencion(e.target.value)}
+            />
+          </div>
+          <button className="btn" onClick={handleGuardar} disabled={guardando || !configValida}>
+            {guardando ? 'Guardando...' : 'Guardar configuración'}
           </button>
-          {cfgOk && (
-            <span className="dotline" style={{ marginTop: '10px' }}>
-              <span className="dot" /> Intervalo actualizado
+          {guardado && (
+            <span className="dotline" style={{ marginTop: '12px' }}>
+              <span className="dot" /> Configuración actualizada
             </span>
           )}
-        </div>
-
-        {/* Card 6: Diccionario de métricas y umbrales */}
-        <div className="card span2" style={{ '--i': 5 } as React.CSSProperties}>
-          <div className="card-head">
-            <div className="icon-chip">
-              <BarChart3 size={22} />
+          {erroresConfig.length > 0 && (
+            <div className="error" role="alert">
+              {erroresConfig.map((m) => (
+                <p key={m}>{m}</p>
+              ))}
             </div>
-            <div>
-              <h3 className="card-title">Diccionario de métricas y umbrales</h3>
-              <div className="card-sub">
-                Referencia del equipo. Define el semáforo de todo el tablero
-              </div>
-            </div>
-          </div>
-          <div className="tablewrap">
-            <table className="tabla compacta">
-              <thead>
-                <tr>
-                  <th>Dim</th>
-                  <th>Métrica</th>
-                  <th>Óptimo</th>
-                  <th>Precaución</th>
-                  <th>Crítico</th>
-                </tr>
-              </thead>
-              <tbody>
-                {config.diccionario.map((m, idx) => (
-                  <tr key={idx}>
-                    <td>
-                      <b>{m.dimension}</b>
-                    </td>
-                    <td>{m.metrica}</td>
-                    <td>
-                      <SemaphoreChip level="ok" text={m.optimo} />
-                    </td>
-                    <td>
-                      <SemaphoreChip level="warn" text={m.precaucion} />
-                    </td>
-                    <td>
-                      <SemaphoreChip level="bad" text={m.critico} />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          )}
+          <div className="card-foot">
+            Persistencia: {config.persistencia}. Si se reinicia el backend, vuelve a los valores por
+            defecto.
           </div>
         </div>
       </div>

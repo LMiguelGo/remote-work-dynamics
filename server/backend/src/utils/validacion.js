@@ -168,7 +168,26 @@ function validarEventoIngesta(body) {
   return { ok: errores.length === 0, errores };
 }
 
+// Ventana del historial de analitica en la query: `dias` (1-120, por defecto 30) y `semanas` (1-26, por defecto 8).
+// La query llega como texto; se acepta solo un entero escrito en digitos.
+function validarVentana(query) {
+  const errores = [];
+  const leer = (nombre, defecto, min, max) => {
+    const crudo = query ? query[nombre] : undefined;
+    if (crudo === undefined || crudo === '') return defecto;
+    if (typeof crudo !== 'string' || !/^\d{1,3}$/.test(crudo) || Number(crudo) < min || Number(crudo) > max) {
+      errores.push(`"${nombre}" debe ser un entero entre ${min} y ${max}.`);
+      return defecto;
+    }
+    return Number(crudo);
+  };
+  const dias = leer('dias', 30, 1, 120);
+  const semanas = leer('semanas', 8, 1, 26);
+  return { ok: errores.length === 0, errores, dias, semanas };
+}
+
 module.exports = {
+  validarVentana,
   enteroEnRango,
   validarEncuestaDiaria,
   validarEncuestaSemanal,

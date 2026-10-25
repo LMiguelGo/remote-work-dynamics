@@ -19,7 +19,23 @@ export function iniciales(nombre?: string | null): string {
 }
 
 export function rolTexto(rol: string): string {
-  return rol === 'empleado' ? 'Empleado' : rol === 'lider' ? 'Líder de equipo' : 'Gerente';
+  switch (rol) {
+    case 'admin':
+      return 'Administrador del sistema';
+    case 'gerente':
+      return 'Gerente';
+    case 'lider':
+      return 'Líder de equipo';
+    case 'empleado':
+      return 'Empleado';
+    default:
+      return rol;
+  }
+}
+
+// Nombre para mostrar de un usuario de la sesión: full_name o, si no hay, username.
+export function nombreUsuario(u: { username: string; full_name: string | null }): string {
+  return u.full_name?.trim() || u.username;
 }
 
 export function nivelPuntaje(v: number | null | undefined): SemaphoreLevel {

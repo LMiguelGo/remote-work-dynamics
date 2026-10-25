@@ -5,6 +5,7 @@ const usuarios = require('../repositories/users.repo');
 const events = require('../repositories/events.repo');
 const { construirEquipo } = require('../services/equipo.service');
 const { construirConectividad } = require('../services/operacion.service');
+const { detalleDePersona } = require('./analitica.controller');
 
 // GET /equipo -> arma el equipo del lider en sesion.
 async function miEquipo(req, res) {
@@ -33,4 +34,18 @@ async function conectividadEquipo(req, res) {
   return res.json(construirConectividad(eventosRed));
 }
 
-module.exports = { miEquipo, conectividadEquipo };
+// GET /equipo/integrantes/:id/analitica -> historial por dimension y por metrica de un integrante del equipo del lider
+// en sesion. Si la persona no es de su equipo responde 404, igual que si no existiera.
+async function analiticaIntegrante(req, res) {
+  const personaId = Number(req.params.id);
+  if (!Number.isInteger(personaId)) {
+    return res.status(400).json({ error: 'id invalido' });
+  }
+  const integrantes = await teams.miembrosDeLider(pool, req.usuario.id);
+  if (!integrantes.some((u) => u.id === personaId)) {
+    return res.status(404).json({ error: 'La persona no pertenece a su equipo' });
+  }
+  return detalleDePersona(req, res, personaId);
+}
+
+module.exports = { miEquipo, conectividadEquipo, analiticaIntegrante };

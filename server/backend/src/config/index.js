@@ -35,6 +35,11 @@ const config = {
   GITHUB_WEBHOOK_SECRET: process.env.GITHUB_WEBHOOK_SECRET || GITHUB_WEBHOOK_SECRET_DEV,
   GITHUB_TOKEN: process.env.GITHUB_TOKEN,
   JIRA_STORY_POINTS_FIELD: process.env.JIRA_STORY_POINTS_FIELD || 'customfield_10016',
+  // Contenedor de analitica, solo lectura: catalogo de metricas y correlaciones. Se alcanza por la red interna del
+  // compose; el navegador nunca lo llama. El catalogo cambia solo al desplegar analitica, por eso se guarda en memoria.
+  ANALYTICS_URL: (process.env.ANALYTICS_URL || 'http://analytics:8000').replace(/\/+$/, ''),
+  ANALYTICS_TIMEOUT_MS: Number(process.env.ANALYTICS_TIMEOUT_MS) || 4000,
+  ANALYTICS_CATALOGO_TTL_MS: Number(process.env.ANALYTICS_CATALOGO_TTL_MS) || 10 * 60 * 1000,
 };
 
 // Guarda de arranque (fail-closed): en produccion no se permite arrancar con los

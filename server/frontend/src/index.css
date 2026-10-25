@@ -1108,3 +1108,480 @@ table.tabla {
     grid-template-columns: 1fr;
   }
 }
+
+/* El detalle de una persona se abre dentro de la fila de la tabla, y en pantallas pequeñas la tabla se desplaza por dentro.
+   El detalle se ancla al borde izquierdo y mide lo mismo que la parte visible (menos el relleno de la celda), así se lee
+   sin deslizar. En pantallas anchas coincide con el ancho de la tabla. */
+.tablewrap {
+  container-type: inline-size;
+}
+
+.filadetail .an-panel {
+  position: sticky;
+  left: 0;
+  width: calc(100cqw - 28px);
+}
+
+/* Las tarjetas de la rejilla pueden encogerse más que su contenido: sin esto, una tabla ancha (que ya tiene su propio
+   desplazamiento horizontal) ensanchaba toda la página en pantallas pequeñas. */
+.grid > * {
+  min-width: 0;
+}
+
+/* ---------- Detalle de analítica por persona (historial por dimensión y por métrica) ---------- */
+.an-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.an-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+}
+
+.an-detalle {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+  margin-top: 6px;
+}
+
+.an-sel {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: var(--ink2);
+  font-weight: 600;
+}
+
+.an-sel select {
+  font: inherit;
+  font-weight: 600;
+  color: var(--ink);
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  max-width: 100%;
+}
+
+.an-tabs {
+  display: inline-flex;
+  background: #eef1f6;
+  border-radius: 10px;
+  padding: 3px;
+  gap: 2px;
+}
+
+.an-tabs button {
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-weight: 700;
+  font-size: 0.88rem;
+  color: var(--ink2);
+  padding: 7px 18px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.an-tabs button.on {
+  background: #fff;
+  color: var(--ink);
+  box-shadow: var(--shadow-sm);
+}
+
+.an-tabs button:focus-visible,
+.an-dim:focus-visible,
+.an-chart svg:focus-visible,
+.an-sel select:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+.an-sec {
+  margin: 14px 0 0;
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.an-sec-sub,
+.an-nota {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--ink2);
+}
+
+.an-nota {
+  color: var(--muted);
+}
+
+.an-vacio {
+  margin: 4px 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+/* tarjetas de dimensión */
+.an-dims {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 10px;
+}
+
+.an-dim {
+  text-align: left;
+  font: inherit;
+  color: var(--ink);
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.an-dim:hover:not(:disabled) {
+  border-color: #cfd6e4;
+}
+
+.an-dim.on {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px var(--blue-soft);
+}
+
+.an-dim:disabled {
+  cursor: default;
+  background: #f8f9fc;
+  color: var(--muted);
+}
+
+.an-dim-name {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.an-dim-score {
+  font-variant-numeric: tabular-nums;
+}
+
+.an-dim-score b {
+  font-size: 1.7rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.an-dim-score small {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.an-sc.optimo {
+  color: var(--green);
+}
+
+.an-sc.precaucion {
+  color: var(--amber);
+}
+
+.an-sc.critico {
+  color: var(--red);
+}
+
+.an-dim-delta,
+.an-dim-none,
+.an-res-lbl {
+  font-size: 0.76rem;
+  color: var(--muted);
+}
+
+.an-res-lbl {
+  display: block;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  font-size: 0.68rem;
+}
+
+.an-res {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.an-res + .an-res {
+  border-top: 1px solid var(--line);
+  padding-top: 8px;
+}
+
+/* cabecera de la dimensión elegida */
+.an-dhead {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px 18px;
+  margin-top: 6px;
+}
+
+.an-dhead h4 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 800;
+}
+
+.an-dhead p {
+  margin: 2px 0 0;
+  font-size: 0.84rem;
+  color: var(--ink2);
+}
+
+.an-big {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.an-dos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.an-dos > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.an-howto {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  font-size: 0.78rem;
+  color: var(--ink2);
+}
+
+.an-howto span::before {
+  content: '';
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--muted);
+  margin-right: 6px;
+}
+
+/* tarjeta de métrica */
+.an-mgrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr));
+  gap: 14px;
+}
+
+.an-mcard {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: #fff;
+  padding: 14px 14px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.an-mtop {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px 12px;
+}
+
+.an-mnombre {
+  font-weight: 800;
+  font-size: 0.98rem;
+  line-height: 1.25;
+}
+
+.an-mcodigo {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.7rem;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.an-mvalor {
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.an-mgrande {
+  font-size: 1.45rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+/* gráfica */
+.an-chart {
+  position: relative;
+}
+
+.an-chart svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  touch-action: pan-y;
+}
+
+.an-tk {
+  font-size: 10px;
+  fill: var(--muted);
+}
+
+.an-tip {
+  position: absolute;
+  top: 6px;
+  pointer-events: none;
+  white-space: nowrap;
+  background: #fff;
+  border: 1px solid var(--ink2);
+  border-radius: 8px;
+  padding: 6px 9px;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  box-shadow: 0 4px 14px rgba(20, 40, 90, 0.16);
+  z-index: 5;
+}
+
+/* correlaciones */
+.an-corrs {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr));
+  gap: 14px;
+}
+
+.an-corr {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: #fff;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.an-corr-ctx {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.an-est {
+  font-size: 0.68rem;
+  padding: 2px 7px;
+  border-radius: 5px;
+  background: #eef1f6;
+  color: var(--ink2);
+}
+
+.an-est.diagnostico {
+  background: var(--blue);
+  color: #fff;
+}
+
+.an-est.distinto {
+  background: var(--amber-soft);
+  color: var(--amber);
+}
+
+.an-est.tenue {
+  color: var(--muted);
+}
+
+.an-corr-msg {
+  margin: 0;
+  font-size: 0.94rem;
+  line-height: 1.5;
+}
+
+.an-corr-msg.sin {
+  font-size: 0.86rem;
+  color: var(--ink2);
+}
+
+.an-corr-dos {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+@media (max-width: 560px) {
+  .an-corr-dos {
+    grid-template-columns: 1fr;
+  }
+}
+
+.an-corr-hd {
+  font-size: 0.76rem;
+  color: var(--ink2);
+  margin-bottom: 2px;
+}
+
+.an-corr-hd b {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.an-mut {
+  color: var(--muted);
+}
+
+.an-spark {
+  display: block;
+  width: 100%;
+  height: 90px;
+}
+
+.an-corr-pie {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  font-size: 0.76rem;
+  color: var(--muted);
+}
+
+.an-mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: var(--ink2);
+}
+
