@@ -29,3 +29,7 @@ node_modules/
 # Ajuste local de Docker Compose (por ejemplo para el modo produccion). Es propio
 # de cada entorno, no se sube al repositorio.
 docker-compose.override.yml
+
+
+# Configuracion de Nginx
+nginx
