@@ -4,6 +4,7 @@ const events = require('../repositories/events.repo');
 const employeeProfiles = require('../repositories/employeeProfiles.repo');
 const alerts = require('../repositories/alerts.repo');
 const { construirPanel } = require('../services/panelEmpleado.service');
+const { construirConectividad } = require('../services/operacion.service');
 const { sePuedeEncuestaSemanal } = require('../services/encuestas.service');
 const { horasEntre, mismoDiaUTC } = require('../utils/fechas');
 
@@ -30,6 +31,11 @@ async function miPanel(req, res) {
   const ambienteFilas = await events.ultimasAmbiente(pool, userId, 5);
   const alertasUsuario = await alerts.deUsuario(pool, userId);
 
+  // Conectividad de la propia fuente de red del empleado, con la misma forma que
+  // ve el lider. Sin fuente de red o sin medicion queda en 'sin datos'.
+  const eventosRed = await events.ultimaRedPorFuenteDeUsuarios(pool, [userId]);
+  const conexion = construirConectividad(eventosRed).fuentes[0] || null;
+
   const fuente = await dataSources.obtenerPorUsuarioYTipo(pool, userId, 'web_app');
   let jornada = null;
   let encuestaDiariaPendiente = true;
@@ -53,7 +59,7 @@ async function miPanel(req, res) {
     usuario: req.usuario,
     profile,
     ambiente: aplanarAmbiente(ambienteFilas),
-    conexion: [], // no existe fuente de red en el prototipo: queda "Sin datos".
+    conexion,
     alertas: alertasUsuario,
     jornada,
     encuestaDiariaPendiente,

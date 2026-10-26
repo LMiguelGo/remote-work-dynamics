@@ -182,7 +182,7 @@ Desde la carpeta `server`, levantar todo el stack:
 docker compose up --build
 ```
 
-Con los contenedores arriba, sembrar los datos de demostración dentro del contenedor del backend:
+Con los contenedores arriba, sembrar dentro del contenedor del backend los roles, las cuentas de las personas y la estructura de equipos.
 
 ```bash
 docker compose exec backend npm run seed
@@ -191,11 +191,13 @@ docker compose exec backend npm run seed
 **Salida esperada:**
 
 ```
-Seed completado. Usuarios creados: gerente1, lider1, empleado1, empleado2
+Seed completado. Usuarios creados: admin1, gerente1, lider1, empleado1, empleado2
 Conteos: { ... }
 ```
 
-El backend queda en `http://localhost:3000` y el frontend en `http://localhost`. Cada usuario de la demo tiene su propia clave, distinta, que el seed genera al azar y escribe en `server/backend/.seed-credenciales.txt`. Ese archivo está fuera de git y no se sube al repositorio.
+El backend queda en `http://localhost:3000` y el frontend en `http://localhost`. Cada cuenta se crea con su propia clave temporal, que el seed genera al azar y escribe en `server/backend/.seed-credenciales.txt`. Cada persona debe cambiar esa clave la primera vez que entra. Ese archivo está fuera de git y no se sube al repositorio.
+
+El seed no crea datos de analítica. Para ver las gráficas con datos en un entorno de pruebas, hay que cargar los datos sintéticos desde el contenedor de analítica después del sembrado. El README de analítica explica cómo hacerlo en la sección «Cargar datos de prueba».
 
 | Usuario | Rol | Qué demuestra al entrar |
 |---|---|---|
@@ -369,7 +371,7 @@ Los repositorios y la ingesta se verifican contra el stack levantado, no con pru
 ```
 backend/
 ├── scripts/
-│   └── seed.js          Datos de demostracion
+│   └── seed.js          Siembra roles, cuentas y equipos
 ├── src/
 │   ├── config/          Entorno y constantes
 │   ├── db/              Pool de PostgreSQL

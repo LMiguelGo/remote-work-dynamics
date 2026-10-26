@@ -95,6 +95,16 @@ router.post('/usuarios', [...soloAdmin, exigeJson], async (req, res, next) => {
   }
 });
 
+// Lista de cuentas para que el admin encuentre el id de una (p. ej. para
+// restablecerle la clave). Solo admin, nunca devuelve el hash de la clave.
+router.get('/usuarios', soloAdmin, async (req, res, next) => {
+  try {
+    await authController.listarUsuarios(req, res);
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.post('/usuarios/:id/restablecer-clave', soloAdmin, async (req, res, next) => {
   try {
     await authController.restablecerClave(req, res);

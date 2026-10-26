@@ -40,6 +40,16 @@ Variables de entorno (la conexión se arma sola con las mismas variables que usa
 
 El usuario necesita: `SELECT` en `events` y `data_sources`, y `SELECT` e `INSERT` en `dimension_analyses` y `metric_analyses`. Hoy el compose usa el superusuario `postgres`; en producción conviene un usuario con solo esos permisos.
 
+### Cargar datos de prueba
+
+`load_data.py` carga un conjunto de datos sintéticos de ocho semanas que corresponden a dos personas, una cuyo desempeño se deteriora y otra que se mantiene estable, y deja los resultados ya calculados. Con un solo comando carga los eventos, vuelve a procesar el periodo con `etl.rellenar` y le pide a la API que recalcule las correlaciones.
+
+```bash
+docker compose exec -e ALLOW_DEMO_DATA=1 analytics python load_data.py
+```
+
+Este comando es solo para entornos de prueba, por eso exige la variable `ALLOW_DEMO_DATA=1`. Antes de correrlo hay que haber ejecutado el seed del backend con `npm run seed`, porque reutiliza los usuarios `empleado1` y `empleado2`. Si esos usuarios no existen, el comando avisa y no hace nada. Además es idempotente, de modo que repetir el comando no duplica los eventos.
+
 ## 2. De dónde salen los datos
 
 ### Qué lee
@@ -385,6 +395,8 @@ Para comprobar el contenedor contra la base real basta con revisar: que `GET /he
 | `correlaciones.py` | Las 11 relaciones, Pearson, significancia y redacción |
 | `cache_correlaciones.py` | Caché en memoria de las correlaciones |
 | `catalogo.py` | Catálogo de métricas para el backend |
+| `generate_data.py` | Genera los eventos sintéticos de prueba, ocho semanas de dos personas |
+| `load_data.py` | Carga los datos sintéticos de prueba y deja los resultados calculados, como se explica en la sección 1 |
 | `docs/contrato_backend.md` | Contrato HTTP con el backend |
 | `docs/correlaciones.md` | Las 11 relaciones del marco y sus hipótesis |
 

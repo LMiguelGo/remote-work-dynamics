@@ -44,7 +44,7 @@
 
    ```
 
-5. Sembrar los datos de demostración (*crea roles, usuarios y datos de ejemplo; solo es necesario la primera vez o para reiniciar la BD*):
+5. Sembrar la base de datos con los roles, las cuentas de las personas y la estructura de equipos. Este paso solo hace falta la primera vez o cuando se quiere reiniciar la base de datos.
 
    ```bash
 
@@ -52,7 +52,15 @@
 
    ```
 
-6. Consultar las credenciales generadas para la prueba (*se escriben en un archivo interno dentro del contenedor*):
+6. Cargar los datos sintéticos de analítica. Estos datos sirven solo para las pruebas y corresponden a ocho semanas de eventos de dos personas. El comando carga los eventos, vuelve a procesar ese periodo y recalcula las correlaciones, todo en una sola corrida. Antes de ejecutarlo hay que haber corrido el sembrado del paso anterior, porque usa las cuentas que ese paso crea.
+
+   ```bash
+
+   docker compose exec -e ALLOW_DEMO_DATA=1 analytics python load_data.py
+
+   ```
+
+7. Consultar las credenciales generadas para la prueba (*se escriben en un archivo interno dentro del contenedor*):
 
    ```bash
 
@@ -60,7 +68,7 @@
 
    ```
 
-7. Configurar el enrutamiento en la consola web de **Nginx Proxy Manager**:
+8. Configurar el enrutamiento en la consola web de **Nginx Proxy Manager**:
 
    - Acceder a http://localhost:81
 
@@ -88,9 +96,9 @@
 
 
 
-8. Acceder al dashboard de la aplicación en el navegador: http://localhost
+9. Acceder al dashboard de la aplicación en el navegador: http://localhost
 
-9. Acceder a la documentación de la API de analítica (*disponible solo en despliegue local*): http://localhost:8000/docs
+10. Acceder a la documentación de la API de analítica (*disponible solo en despliegue local*): http://localhost:8000/docs
 
 
 
@@ -228,7 +236,7 @@ En producción, el backend exige secretos propios y habilita verificaciones de s
 
 6. **Sembrado de datos:**  
 
-   Ejecute `docker-compose exec backend npm run seed`. En producción, la contraseña del administrador debe ser entregada por un canal seguro y eliminada del servidor.
+   Ejecute `docker-compose exec backend npm run seed`. Este comando crea las cuentas de las personas con una clave temporal que cada una debe cambiar la primera vez que entra. Las claves quedan guardadas en el archivo `.seed-credenciales.txt`, que se debe entregar por un canal seguro y luego borrar del servidor. En producción no se cargan los datos sintéticos de analítica, porque esos datos solo sirven para las pruebas.
 
 
 
@@ -262,4 +270,4 @@ docker-compose down -v
 
 
 
-El esquema de la base de datos se recreará automáticamente en el próximo inicio y estará listo para ejecutar el comando de sembrado (`npm run seed`).
+El esquema de la base de datos se vuelve a crear solo en el siguiente arranque. Después queda listo para ejecutar otra vez el sembrado con `npm run seed` y, si se trata de un entorno de pruebas, la carga de los datos sintéticos de analítica que aparece en el paso 6 de la sección 2.

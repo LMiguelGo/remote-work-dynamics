@@ -23,8 +23,15 @@ function estadoAmbiente(ultima, umbrales) {
   return 'Normal';
 }
 
-function estadoConexion(conexion) {
-  return conexion && conexion.length > 0 ? 'Normal' : 'Sin datos';
+// conexion llega ya con forma de una fuente de la conectividad del lider
+// ({ estado, qos, interrupcion }) o null si el empleado no tiene fuente de red.
+function construirConexion(conexion) {
+  if (!conexion) return { estado: 'sin datos', qos: null, interrupcion: null };
+  return {
+    estado: conexion.estado,
+    qos: conexion.qos ?? null,
+    interrupcion: conexion.interrupcion ?? null,
+  };
 }
 
 function construirJornada(jornada) {
@@ -58,7 +65,7 @@ function construirPanel(datos) {
       ultima: ultima || null,
       umbrales: umbrales || null,
     },
-    conexion: { estado: estadoConexion(conexion) },
+    conexion: construirConexion(conexion),
     alertas: alertas || [],
     encuestaDiariaPendiente,
     encuestaSemanalPendiente,
