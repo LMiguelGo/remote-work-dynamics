@@ -1539,14 +1539,6 @@ table.tabla {
   color: var(--ink2);
 }
 
-.an-conc {
-  display: grid;
-  gap: 6px;
-  margin-top: 18px;
-  padding-top: 4px;
-  border-top: 1px solid var(--line);
-}
-
 .an-corr-dos {
   display: grid;
   grid-template-columns: 1fr 1fr;

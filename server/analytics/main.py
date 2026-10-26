@@ -5,7 +5,6 @@ from fastapi import FastAPI
 
 import cache_correlaciones
 from catalogo import CATALOGO
-from conclusion_dimensiones import concluir_dimensiones
 from correlaciones import correlacionar_dimensiones, correlacionar_metricas
 from db import cargar_muestras_dimensiones, cargar_muestras_metricas
 from derivadas import TZ_LOCAL
@@ -56,8 +55,6 @@ def correlaciones_metricas(desde: date | None = None, hasta: date | None = None,
 def correlaciones_dimensiones(desde: date | None = None, hasta: date | None = None,
                               usuario_id: int | None = None):
     if desde or hasta:
-        muestras = cargar_muestras_dimensiones(desde, hasta, usuario_id)
-        filas = correlacionar_dimensiones(muestras)
-        return {"calculado_en": datetime.now(TZ_LOCAL).isoformat(timespec="seconds"), "correlaciones": filas,
-                "conclusiones": concluir_dimensiones(filas, muestras)}
+        filas = correlacionar_dimensiones(cargar_muestras_dimensiones(desde, hasta, usuario_id))
+        return {"calculado_en": datetime.now(TZ_LOCAL).isoformat(timespec="seconds"), "correlaciones": filas}
     return cache_correlaciones.obtener("dimensiones", usuario_id)

@@ -46,8 +46,6 @@ async function correlaciones(usuarioId) {
       calculado_en: metricas.calculado_en,
       metricas: metricas.correlaciones,
       dimensiones: dimensiones.correlaciones,
-      // Lectura de conjunto de las correlaciones entre dimensiones; null si la analitica aun no la trae.
-      conclusion_dimensiones: (dimensiones.conclusiones || [])[0] || null,
     };
   } catch (err) {
     console.error('No se pudieron leer las correlaciones de la analitica:', err.message);

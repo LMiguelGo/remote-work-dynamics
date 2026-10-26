@@ -3,4 +3,3 @@ uvicorn==0.30.6
 SQLAlchemy==2.0.35
 psycopg2-binary==2.9.9
 APScheduler==3.10.4
-groq==1.7.0

@@ -282,7 +282,7 @@ Parámetros opcionales: `dias` (1 a 120, por defecto 30) y `semanas` (1 a 26, po
       ]
     }
   ],
-  "correlaciones": { "calculado_en": "2026-10-24T00:10:03-05:00", "metricas": [], "dimensiones": [], "conclusion_dimensiones": null }
+  "correlaciones": { "calculado_en": "2026-10-24T00:10:03-05:00", "metricas": [], "dimensiones": [] }
 }
 ```
 
@@ -291,7 +291,6 @@ Parámetros opcionales: `dias` (1 a 120, por defecto 30) y `semanas` (1 a 26, po
 - Cada métrica trae su `historial` ordenado de más antiguo a más reciente, con la fecha de cada punto, y `ultimo`. `frecuencia` dice si se dibuja por día (línea) o por semana o sprint (barras).
 - `franjas` y `escala` son las del catálogo de analítica, en la unidad de la métrica. En las métricas por sprint `franjas` es `null`, porque su puntaje sale de la diferencia con el promedio de sus sprints anteriores (`umbrales_relativos`). La escala es una sugerencia: si algún valor la supera, quien dibuja la amplía.
 - `normalized_score` y `normalized_value` están en escala 0 a 10 (óptimo 8 a 10, precaución 6 a 7.9, crítico 0 a 5.9). El backend no calcula ninguno: los lee de `dimension_analyses` y `metric_analyses`.
-- `correlaciones.conclusion_dimensiones` es la conclusión que redacta la analítica sobre qué dimensiones se mueven juntas (`estado`, `mensaje`, `interpretacion`, `aviso`, `puntajes`, `relaciones`, `sin_datos`); es `null` si la analítica aún no la trae. `interpretacion` es la lectura de un LLM y es `null` si no hay LLM configurado o falló. El backend lo pasa tal cual.
 - `correlaciones` se lee de analítica en cada petición (ella las guarda en memoria y las renueva con cada cierre) y es `null` si analítica no responde. El catálogo se guarda en memoria del backend; si analítica no responde y no hay ninguno guardado, la ruta responde `503`.
 
 ### Control de acceso

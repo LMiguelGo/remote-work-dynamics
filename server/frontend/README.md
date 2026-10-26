@@ -85,7 +85,6 @@ Esta versión agrega el detalle de analítica por persona a las vistas de líder
 | Panel de detalle de una persona: pestañas Día y Semana, tarjetas por dimensión y detalle de la dimensión elegida | `src/components/analitica/DetallePersona.tsx` |
 | Tarjeta de una métrica y su gráfica (valor con franjas de umbral, puntos coloreados por criticidad, tooltip y teclado) | `TarjetaMetrica.tsx`, `GraficaMetrica.tsx` |
 | Correlaciones entre métricas | `Correlaciones.tsx` |
-| Conclusión al final del detalle: qué dimensiones se mueven juntas (lectura del LLM de la analítica, `interpretacion`; sin ella la sección no aparece; sin matriz de calor) | `LecturaDimensiones.tsx` |
 | Fechas, formato de valores, colores y orden de las correlaciones | `src/utils/analitica.ts` |
 | Tipos de la respuesta del backend (`AnaliticaPersona` y sus partes) | `src/types/index.ts` |
 | Estilos del panel (clases `an-*`) | `src/index.css` |

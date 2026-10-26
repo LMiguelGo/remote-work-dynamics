@@ -399,23 +399,10 @@ export interface CorrelacionDimensiones {
   significativa: boolean;
 }
 
-// Lectura de conjunto de las correlaciones entre dimensiones, redactada por la analítica. `mensaje` es el texto que se muestra.
-export interface ConclusionDimensiones {
-  usuario_id: number;
-  estado: 'relacion' | 'sin_relacion' | 'datos_insuficientes';
-  semanas: number;
-  mensaje: string; // texto de plantilla de la analítica; no se muestra
-  interpretacion: string | null; // lectura del LLM; sin ella no se muestra la sección
-  aviso: string;
-  relaciones: { dimension_a: DimensionKey; dimension_b: DimensionKey; coeficiente: number; fuerza: string; sentido: 'juntas' | 'contrarias' }[];
-  sin_datos: DimensionKey[];
-}
-
 export interface CorrelacionesPersona {
   calculado_en: string;
   metricas: CorrelacionMetricas[];
   dimensiones: CorrelacionDimensiones[];
-  conclusion_dimensiones: ConclusionDimensiones | null;
 }
 
 export interface AnaliticaPersona {
