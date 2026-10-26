@@ -21,7 +21,7 @@ test('construirPanel con ambiente normal: estado Normal y sin metricas de produc
     usuario: { id: 3, rol: 'empleado' },
     profile: { ambient_thresholds: UMBRALES, work_schedule: {}, capture_active: true },
     ambiente: [{ time: '2026-10-20T10:00:00Z', temperature: 23, humidity: 45, noise_level: 40 }],
-    conexion: [],
+    conexion: null,
     alertas: [],
     jornada: null,
     encuestaDiariaPendiente: true,
@@ -36,19 +36,39 @@ test('construirPanel con ambiente normal: estado Normal y sin metricas de produc
   assert.equal(r.puntaje, undefined);
 });
 
-test('construirPanel sin lecturas de conexion: estado Sin datos', () => {
+test('construirPanel sin fuente de red: estado sin datos', () => {
   const r = construirPanel({
     usuario: { id: 3, rol: 'empleado' },
     profile: { ambient_thresholds: UMBRALES, work_schedule: {}, capture_active: true },
     ambiente: [{ time: '2026-10-20T10:00:00Z', temperature: 23, humidity: 45, noise_level: 40 }],
-    conexion: [],
+    conexion: null,
     alertas: [],
     jornada: null,
     encuestaDiariaPendiente: false,
     encuestaSemanalPendiente: false,
   });
 
-  assert.equal(r.conexion.estado, 'Sin datos');
+  assert.equal(r.conexion.estado, 'sin datos');
+  assert.equal(r.conexion.qos, null);
+  assert.equal(r.conexion.interrupcion, null);
+});
+
+test('construirPanel con medicion de red: estado con datos y qos tal cual', () => {
+  const qos = { latency_ms: 24.5, download_speed_mbps: 95, upload_speed_mbps: 22, packet_loss_percentage: 0, time: '2026-10-18T15:00:00Z' };
+  const r = construirPanel({
+    usuario: { id: 3, rol: 'empleado' },
+    profile: { ambient_thresholds: UMBRALES, work_schedule: {}, capture_active: true },
+    ambiente: [],
+    conexion: { estado: 'con datos', qos, interrupcion: null },
+    alertas: [],
+    jornada: null,
+    encuestaDiariaPendiente: false,
+    encuestaSemanalPendiente: false,
+  });
+
+  assert.equal(r.conexion.estado, 'con datos');
+  assert.deepEqual(r.conexion.qos, qos);
+  assert.equal(r.conexion.interrupcion, null);
 });
 
 test('construirPanel expone los dos avisos de encuesta tal cual entran', () => {
@@ -56,7 +76,7 @@ test('construirPanel expone los dos avisos de encuesta tal cual entran', () => {
     usuario: { id: 3, rol: 'empleado' },
     profile: { ambient_thresholds: UMBRALES, work_schedule: {}, capture_active: true },
     ambiente: [],
-    conexion: [],
+    conexion: null,
     alertas: [],
     jornada: null,
     encuestaDiariaPendiente: true,

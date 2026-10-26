@@ -23,6 +23,19 @@ async function listarDemo(pool) {
   return r.rows;
 }
 
+// Lista de cuentas para el administrador del sistema. Nunca devuelve password_hash.
+// Sirve para que el admin encuentre el id de una cuenta ya existente, por ejemplo
+// para restablecerle la clave. Solo la usa una ruta protegida de rol admin.
+async function listar(pool) {
+  const r = await pool.query(
+    `SELECT u.id, u.username, u.full_name, rol.name AS rol, u.team_id, u.is_active
+       FROM users u
+       JOIN roles rol ON rol.id = u.role_id
+      ORDER BY u.username`
+  );
+  return r.rows;
+}
+
 async function obtenerPorId(pool, id) {
   const r = await pool.query(
     `SELECT u.id, u.username, u.password_hash, u.full_name,
@@ -69,6 +82,7 @@ async function actualizarClave(pool, { userId, passwordHash, mustChange }) {
 module.exports = {
   buscarPorUsername,
   listarDemo,
+  listar,
   obtenerPorId,
   obtenerRolPorNombre,
   crear,

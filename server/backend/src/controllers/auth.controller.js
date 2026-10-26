@@ -3,10 +3,31 @@ const jwt = require('jsonwebtoken');
 const config = require('../config/index');
 const { pool } = require('../db/pool');
 const usersRepo = require('../repositories/users.repo');
+const dataSources = require('../repositories/dataSources.repo');
+const employeeProfiles = require('../repositories/employeeProfiles.repo');
 const authService = require('../services/auth.service');
 const { validarPoliticaClave, generarClaveTemporal } = require('../utils/password');
 
 const COSTO_BCRYPT = 10;
+
+// Horario y umbrales por defecto del perfil de un empleado nuevo, con la misma
+// forma que usa el seed. El empleado los puede ajustar despues desde su panel.
+const JORNADA_POR_DEFECTO = {
+  zona_horaria: 'America/Bogota',
+  hora_inicio: '08:00',
+  hora_fin: '17:00',
+  descansos: [
+    { nombre: 'almuerzo', inicio: '12:00', fin: '13:00' },
+    { nombre: 'pausa_activa', inicio: '15:30', fin: '15:45' },
+  ],
+};
+const UMBRALES_POR_DEFECTO = {
+  temperatura_c: { min: 20, max: 26 },
+  humedad_pct: { min: 30, max: 60 },
+  ruido_db: { min: 0, max: 55 },
+};
+// team_role por defecto del empleado cuando el admin no lo indica.
+const TEAM_ROLE_POR_DEFECTO = 'backend';
 
 function firmar(payload) {
   return jwt.sign(payload, config.JWT_SECRET, { expiresIn: '8h' });
@@ -80,7 +101,7 @@ async function cambiarClave(req, res) {
 // ingreso. Si no se envia clave_temporal, se genera una. La clave se devuelve UNA
 // sola vez para que el administrador la entregue por un canal privado.
 async function crearUsuario(req, res) {
-  const { username, full_name, rol, team_id, clave_temporal } = req.body || {};
+  const { username, full_name, rol, team_id, team_role, clave_temporal } = req.body || {};
 
   if (typeof username !== 'string' || username.trim() === '') {
     return res.status(400).json({ error: 'username es obligatorio' });
@@ -92,6 +113,21 @@ async function crearUsuario(req, res) {
   const rolFila = await usersRepo.obtenerRolPorNombre(pool, rol);
   if (!rolFila) {
     return res.status(400).json({ error: `rol '${rol}' no existe` });
+  }
+
+  // Solo el empleado tiene perfil y telemetria, asi que solo a el se le resuelve un
+  // team_role (el pedido por el admin o el por defecto) y se le provisiona.
+  const esEmpleado = rolFila.name === 'empleado';
+  let teamRoleFila = null;
+  if (esEmpleado) {
+    const nombreTeamRole =
+      typeof team_role === 'string' && team_role.trim() !== '' ? team_role.trim() : TEAM_ROLE_POR_DEFECTO;
+    teamRoleFila =
+      (await employeeProfiles.obtenerTeamRolePorNombre(pool, nombreTeamRole)) ||
+      (await employeeProfiles.primerTeamRole(pool));
+    if (!teamRoleFila) {
+      return res.status(500).json({ error: 'No hay team_roles configurados para crear el perfil del empleado' });
+    }
   }
 
   // Clave temporal: la dada por el admin (validada) o una generada.
@@ -107,8 +143,14 @@ async function crearUsuario(req, res) {
 
   const passwordHash = await bcrypt.hash(claveTemporal, COSTO_BCRYPT);
 
+  // Transaccion: la cuenta y, para el empleado, su fuente web_app y su perfil se
+  // crean juntos o no se crean. Sin la fuente web_app la jornada y las encuestas
+  // responderian 400, por eso no se puede dejar al empleado a medias.
+  const client = await pool.connect();
   try {
-    const creado = await usersRepo.crear(pool, {
+    await client.query('BEGIN');
+
+    const creado = await usersRepo.crear(client, {
       username: username.trim(),
       fullName: full_name,
       roleId: rolFila.id,
@@ -116,6 +158,25 @@ async function crearUsuario(req, res) {
       passwordHash,
       mustChange: true,
     });
+
+    if (esEmpleado) {
+      await dataSources.crear(client, {
+        userId: creado.id,
+        sourceType: 'web_app',
+        identifier: `web_app_${creado.username}`,
+        description: 'Actividad en la aplicacion web.',
+      });
+      await employeeProfiles.crear(client, {
+        userId: creado.id,
+        teamRoleId: teamRoleFila.id,
+        workSchedule: JORNADA_POR_DEFECTO,
+        ambientThresholds: UMBRALES_POR_DEFECTO,
+        captureActive: true,
+      });
+    }
+
+    await client.query('COMMIT');
+
     return res.status(201).json({
       id: creado.id,
       username: creado.username,
@@ -124,12 +185,23 @@ async function crearUsuario(req, res) {
       aviso: 'Entregue esta clave por un canal privado. El usuario debe cambiarla al ingresar.',
     });
   } catch (err) {
+    await client.query('ROLLBACK');
     // 23505 = violacion de unicidad (username ya existe).
     if (err && err.code === '23505') {
       return res.status(409).json({ error: 'El username ya existe' });
     }
     throw err;
+  } finally {
+    client.release();
   }
+}
+
+// Lista de cuentas para el administrador del sistema. Solo rol admin. No enumera
+// en la demo (esa es usuarios-demo); esta es la via real para que el admin
+// encuentre el id de una cuenta, por ejemplo para restablecerle la clave.
+async function listarUsuarios(req, res) {
+  const lista = await usersRepo.listar(pool);
+  return res.json(lista);
 }
 
 // Restablece la clave de una cuenta (lo hace el administrador). Genera una clave
@@ -156,4 +228,4 @@ async function restablecerClave(req, res) {
   });
 }
 
-module.exports = { iniciarSesion, usuariosDemo, cambiarClave, crearUsuario, restablecerClave };
+module.exports = { iniciarSesion, usuariosDemo, cambiarClave, crearUsuario, listarUsuarios, restablecerClave };

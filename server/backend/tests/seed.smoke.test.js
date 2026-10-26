@@ -14,23 +14,42 @@ test('hay 4 roles base (admin, gerente, lider, empleado)', async () => {
   assert.equal(r.rows[0].n, 4);
 });
 
-test('hay 5 usuarios de demo', async () => {
+test('hay 5 cuentas iniciales', async () => {
   const r = await query('SELECT count(*)::int AS n FROM users;');
   assert.equal(r.rows[0].n, 5);
 });
 
-test('hay al menos una dimension_analyses con fechas no nulas', async () => {
+test('todas las cuentas se crean con cambio de clave obligatorio', async () => {
   const r = await query(
-    `SELECT count(*)::int AS n FROM dimension_analyses
-       WHERE start_date IS NOT NULL AND end_date IS NOT NULL AND frequency IS NOT NULL;`,
+    'SELECT count(*)::int AS n FROM users WHERE must_change_password = false;',
   );
-  assert.ok(r.rows[0].n >= 1, 'se esperaba al menos 1 dimension_analyses');
+  assert.equal(r.rows[0].n, 0);
 });
 
-test('hay al menos una metric_analyses con start_date y end_date no nulos', async () => {
+test('cada empleado tiene su perfil (2 employee_profiles)', async () => {
+  const r = await query('SELECT count(*)::int AS n FROM employee_profiles;');
+  assert.equal(r.rows[0].n, 2);
+});
+
+test('cada empleado tiene su fuente web_app (2 fuentes web_app)', async () => {
   const r = await query(
-    `SELECT count(*)::int AS n FROM metric_analyses
-       WHERE start_date IS NOT NULL AND end_date IS NOT NULL;`,
+    "SELECT count(*)::int AS n FROM data_sources WHERE source_type = 'web_app';",
   );
-  assert.ok(r.rows[0].n >= 1, 'se esperaba al menos 1 metric_analyses');
+  assert.equal(r.rows[0].n, 2);
+});
+
+// El seed de produccion no siembra telemetria ni analitica: esos datos llegan de
+// las fuentes reales y, para las pruebas con datos sinteticos, los produce
+// load_data.py de analitica. Aqui se fija ese contrato: tras el seed, cero eventos
+// y cero resultados de analitica.
+test('el seed no siembra eventos de telemetria', async () => {
+  const r = await query('SELECT count(*)::int AS n FROM events;');
+  assert.equal(r.rows[0].n, 0);
+});
+
+test('el seed no siembra analitica (dimension_analyses ni metric_analyses)', async () => {
+  const d = await query('SELECT count(*)::int AS n FROM dimension_analyses;');
+  const m = await query('SELECT count(*)::int AS n FROM metric_analyses;');
+  assert.equal(d.rows[0].n, 0);
+  assert.equal(m.rows[0].n, 0);
 });

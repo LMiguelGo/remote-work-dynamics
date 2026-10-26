@@ -1,4 +1,7 @@
-// Seed de catalogos y datos de demo para el prototipo.
+// Seed de provision inicial del sistema: catalogos (roles y team_roles), la
+// estructura de equipos y las cuentas iniciales de la organizacion. NO siembra
+// telemetria ni analitica: en produccion esos datos llegan de las fuentes reales
+// y, para las pruebas con datos sinteticos, los produce load_data.py de analitica.
 // Idempotente: trunca y vuelve a insertar en una transaccion.
 // Se ejecuta DENTRO del contenedor backend, que alcanza la base como database:5432.
 //   npm run seed   (o)   node scripts/seed.js
@@ -9,13 +12,14 @@ const path = require('path');
 const { pool, query } = require('../src/db/pool');
 const { generarClaveTemporal } = require('../src/utils/password');
 
-// Usuarios de demo. Cada uno con su propia clave aleatoria, no compartida, que se
-// genera al sembrar. Las claves NO se imprimen ni van al repo: se escriben en un
-// archivo local ignorado por git (.seed-credenciales.txt) para poder entrar en la
-// demo. Todos quedan como cuentas ya establecidas (must_change_password en false);
-// el flujo de clave temporal con cambio obligatorio se prueba creando un usuario
-// nuevo desde el administrador del sistema (admin1).
-const USUARIOS_DEMO = [
+// Cuentas iniciales de la organizacion: un administrador del sistema, un gerente,
+// un lider y dos empleados (la estructura minima para operar). Cada una se crea con
+// una clave temporal aleatoria y cambio obligatorio en el primer ingreso
+// (must_change_password en true), la postura de produccion. Las claves NO se
+// imprimen ni van al repo: se escriben en un archivo local ignorado por git
+// (.seed-credenciales.txt) para que el operador las entregue una sola vez por un
+// canal privado; cada persona la cambia al ingresar.
+const USUARIOS_INICIALES = [
   { username: 'admin1',    full_name: 'Administrador del sistema', rol: 'admin' },
   { username: 'gerente1',  full_name: 'Gabriela Mejia',           rol: 'gerente' },
   { username: 'lider1',    full_name: 'Luis Ibarra',              rol: 'lider' },
@@ -89,16 +93,16 @@ async function sembrar() {
     const teamRoleId = Object.fromEntries(teamRoles.rows.map((r) => [r.name, r.id]));
 
     // 3. users con team_id en NULL por ahora (la FK circular se resuelve despues).
-    //    Cada usuario con su clave propia aleatoria y su hash bcrypt. Quedan como
-    //    cuentas ya establecidas (must_change_password en false).
+    //    Cada usuario con su clave temporal aleatoria y su hash bcrypt, y con
+    //    must_change_password en true: debe cambiarla en el primer ingreso.
     const credenciales = [];
     const filasUsuarios = [];
-    for (const u of USUARIOS_DEMO) {
+    for (const u of USUARIOS_INICIALES) {
       const clave = generarClaveTemporal();
       const passwordHash = await bcrypt.hash(clave, 10);
       const r = await query(
         `INSERT INTO users (username, password_hash, full_name, role_id, team_id, must_change_password)
-         VALUES ($1, $2, $3, $4, NULL, false)
+         VALUES ($1, $2, $3, $4, NULL, true)
          RETURNING id, username;`,
         [u.username, passwordHash, u.full_name, rolId[u.rol]],
       );
@@ -186,19 +190,16 @@ async function sembrar() {
       ],
     );
 
-    // 8b. fuente 'network' por empleado (la alimenta un agente externo via /ingesta).
-    // RETURNING id para usar el source_id correcto en los eventos de ejemplo.
-    const red = await query(
+    // 8b. fuente 'network' por empleado (la alimenta la sonda de red via ingesta).
+    await query(
       `INSERT INTO data_sources (user_id, source_type, identifier, description, is_active) VALUES
          ($1, 'network', $2, 'Sonda de red del puesto (QoS e interrupciones).', true),
-         ($3, 'network', $4, 'Sonda de red del puesto (QoS e interrupciones).', true)
-       RETURNING id, user_id;`,
+         ($3, 'network', $4, 'Sonda de red del puesto (QoS e interrupciones).', true);`,
       [
         userId.empleado1, 'network_empleado1',
         userId.empleado2, 'network_empleado2',
       ],
     );
-    const redEmpleado1 = red.rows.find((r) => r.user_id === userId.empleado1).id;
 
     // 8d. fuente 'jira' a nivel de proyecto para la ingesta del conector de Karol.
     // identifier = 'SCRUM' (la clave del proyecto en Jira). Los eventos de Jira son
@@ -211,24 +212,6 @@ async function sembrar() {
       [userId.gerente1, 'SCRUM'],
     );
 
-    // 8c. eventos de red recientes SOLO para empleado1, segun el contrato
-    // data_guide de la fuente network. Asi /operacion/conectividad muestra datos
-    // para empleado1 y deja a empleado2 en 'sin datos'.
-    await query(
-      `INSERT INTO events (time, source_id, event_type, payload) VALUES
-         (now(), $1, 'interruption',    $2::jsonb),
-         (now(), $1, 'qos_measurement', $3::jsonb);`,
-      [
-        redEmpleado1,
-        JSON.stringify({ interruption_duration_seconds: 45, interruption_count: 1 }),
-        JSON.stringify({
-          latency_ms: 24.5,
-          download_speed_mbps: 95.0,
-          upload_speed_mbps: 22.0,
-          packet_loss_percentage: 0.0,
-        }),
-      ],
-    );
     // 8e. fuentes por persona de empleado1: github (identifier = login) y jira
     // (identifier = accountId completo). Las usan /api/ingesta/github y /ingesta/jira.
     await query(
@@ -238,28 +221,10 @@ async function sembrar() {
       [userId.empleado1, 'BriyithNarvaez04', '712020:8437f9f2-9c48-4ebc-83ff-eb44cb5a597a']
     );
 
-    // 9. analitica de ejemplo para empleado1 (camino de lectura de la Tarea 6).
-    //    Una semana reciente, dimension S, frecuencia 'week'.
-    const inicio = '2026-10-12';
-    const fin = '2026-10-18';
-    const dim = await query(
-      `INSERT INTO dimension_analyses
-         (user_id, dimension, start_date, end_date, frequency, normalized_score, criticality_status)
-       VALUES ($1, 'S', $2, $3, 'week', 0.72, 'optimo')
-       RETURNING id;`,
-      [userId.empleado1, inicio, fin],
-    );
-    const dimId = dim.rows[0].id;
-
-    // Dos metricas que soportan la dimension S, con las columnas obligatorias llenas.
-    await query(
-      `INSERT INTO metric_analyses
-         (dimension_analysis_id, user_id, metric_name, raw_value, normalized_value, start_date, end_date, criticality)
-       VALUES
-         ($1, $2, 'horas_foco', 28.5, 0.76, $3, $4, 'optimo'),
-         ($1, $2, 'interrupciones', 12, 0.68, $3, $4, 'precaucion');`,
-      [dimId, userId.empleado1, inicio, fin],
-    );
+    // La analitica (dimension_analyses y metric_analyses) y los eventos de
+    // telemetria NO se siembran a mano: en produccion llegan de las fuentes reales
+    // y, para las pruebas con datos sinteticos, los produce load_data.py de
+    // analitica, que carga los eventos y corre el reprocesado del etl.
 
     await query('COMMIT');
 
@@ -277,11 +242,12 @@ async function sembrar() {
          (SELECT count(*) FROM metric_analyses)    AS metric_analyses;`,
     );
 
-    // Credenciales de la demo a un archivo local ignorado por git. Nunca a consola
-    // ni al repo. Es solo para entrar en la demo; en produccion no existe este paso.
+    // Claves temporales a un archivo local ignorado por git. Nunca a consola ni al
+    // repo. El operador las entrega una sola vez por un canal privado; cada persona
+    // la cambia en el primer ingreso (must_change_password en true).
     const lineas = [
-      '# Credenciales de la demo. Generadas por el seed. NO subir al repositorio.',
-      '# Cada clave es distinta por usuario. Regeneradas en cada corrida del seed.',
+      '# Claves temporales de la provision inicial. Generadas por el seed. NO subir al repositorio.',
+      '# Cada clave es distinta por usuario y se debe cambiar en el primer ingreso. Regeneradas en cada corrida del seed.',
       '',
       ...credenciales.map((c) => `${c.username} (${c.rol}): ${c.clave}`),
       '',

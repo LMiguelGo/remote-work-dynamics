@@ -58,4 +58,16 @@ async function buscarPorIdentifierYTipo(pool, identifier, sourceType) {
   return r.rows[0] || null;
 }
 
-module.exports = { obtenerPorUsuarioYTipo, estadoDeFuentes, buscarPorIdentifier, buscarPorIdentifierYTipo };
+// Crea una fuente de datos para un usuario. La usa la provision de cuentas para
+// registrar la fuente web_app del empleado al crearlo.
+async function crear(pool, { userId, sourceType, identifier, description = null, isActive = true }) {
+  const r = await pool.query(
+    `INSERT INTO data_sources (user_id, source_type, identifier, description, is_active)
+     VALUES ($1, $2, $3, $4, $5)
+     RETURNING id, user_id, source_type, identifier, is_active`,
+    [userId, sourceType, identifier, description, isActive]
+  );
+  return r.rows[0];
+}
+
+module.exports = { obtenerPorUsuarioYTipo, estadoDeFuentes, buscarPorIdentifier, buscarPorIdentifierYTipo, crear };
