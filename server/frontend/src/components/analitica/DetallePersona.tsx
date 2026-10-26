@@ -16,6 +16,7 @@ import {
   rangoFechas,
 } from '../../utils/analitica';
 import { Correlaciones } from './Correlaciones';
+import { LecturaDimensiones } from './LecturaDimensiones';
 import { TarjetaMetrica } from './TarjetaMetrica';
 
 type Vista = 'dia' | 'semana';
@@ -352,6 +353,8 @@ export const DetallePersona: React.FC<Props> = ({ rutaBase, personaId }) => {
 
       {dimActiva && vista === 'dia' && dimActiva.diaria && detalleDia(dimActiva, dimActiva.diaria)}
       {dimActiva && vista === 'semana' && detalleSemana(dimActiva)}
+
+      <LecturaDimensiones conclusion={data.correlaciones?.conclusion_dimensiones} />
     </div>
   );
 };

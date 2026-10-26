@@ -37,6 +37,9 @@ Variables de entorno (la conexión se arma sola con las mismas variables que usa
 | `POSTGRES_USER` | `postgres` | Usuario |
 | `POSTGRES_PASSWORD` | `postgres_password` | Clave (puede llevar cualquier carácter) |
 | `POSTGRES_DB` | `rwd_database` | Base |
+| `GROQ_API_KEY` | (vacía) | Clave de la API de Groq. Sin ella la lectura con LLM de las dimensiones (sección 6.5) queda apagada |
+| `LLM_MODEL` | `openai/gpt-oss-120b` | Modelo de Groq que redacta esa lectura. Debe estar disponible para tu clave: los Llama de Groq piden plan Enterprise; con una clave normal sirven `openai/gpt-oss-120b`, `openai/gpt-oss-20b` o `qwen/qwen3.8-27b` |
+| `LLM_TIMEOUT_S` | `60` | Segundos máximos de espera por respuesta |
 
 El usuario necesita: `SELECT` en `events` y `data_sources`, y `SELECT` e `INSERT` en `dimension_analyses` y `metric_analyses`. Hoy el compose usa el superusuario `postgres`; en producción conviene un usuario con solo esos permisos.
 
@@ -313,7 +316,7 @@ Las relaciones 2 y 9 agrupan dos métricas en un lado, así que producen **dos f
 7. **Texto.** `mensaje` es el texto que se imprime siempre: la conclusión redactada si hay `diagnostico` y, si no, un texto neutro con el coeficiente. La conclusión cambia según el estado de las dos métricas (ambas fuera de la zona óptima, ambas dentro, solo una). `aviso` trae "Una correlación no implica causalidad." con `diagnostico` y `patron_distinto`, y es `null` en los demás.
 8. **`serie`.** `[[periodo, valor de A, valor de B], ...]`, con los mismos periodos y valores crudos usados para el coeficiente, para que la gráfica coincida con el diagnóstico sin que nadie reagrupe nada. Cada fila ya viene lista para dibujarse.
 
-**Correlaciones entre dimensiones.** Pearson entre los puntajes diarios de cada par de dimensiones, promediados por semana: 10 pares por persona, sin texto.
+**Correlaciones entre dimensiones.** Pearson entre los puntajes diarios de cada par de dimensiones, promediados por semana: 10 pares por persona. Las filas no traen texto: la lectura de conjunto está en `conclusiones` (secciones 6.5 y 7). `C` no entra en ningún par porque no tiene métricas diarias.
 
 ### 6.4 Cómo se comparten
 
@@ -326,6 +329,19 @@ No se guardan en ninguna tabla. Se calculan en memoria y se sirven por HTTP (`GE
 - Con `desde` o `hasta` en la consulta se calcula en el momento sobre ese rango, sin usar ni tocar la caché.
 - Si un cierre falla al recalcularla, se sigue sirviendo la anterior y el error queda en el log.
 
+### 6.5 Lectura de las dimensiones: plantilla y LLM
+
+Además de los 10 coeficientes, cada persona tiene una **conclusión** (`conclusion_dimensiones.py`) que resume qué dimensiones se mueven juntas: solo cuenta los pares significativos y de fuerza moderada o fuerte (hasta 3), añade los puntajes de la última semana de los pares con alguna dimensión fuera de óptimo y avisa de las dimensiones sin semanas suficientes. Ese texto de plantilla viene en `mensaje` y es determinista.
+
+Encima, `llm_dimensiones.py` puede pedirle a un LLM (API de Groq, SDK `groq`) que redacte una lectura más natural y la deja en `interpretacion`. **El frontend muestra solo `interpretacion`**: si es `null`, la sección no aparece.
+
+- **Qué se envía:** solo números y letras de dimensión (semanas con datos, pares con su `r`, fuerza y sentido, puntajes de la última semana, dimensiones sin datos). Nunca nombres ni ids de personas.
+- **Cuándo se llama:** al recalcular la caché (cada cierre y `POST /correlaciones/recalcular`), con las personas en paralelo. No se llama en cada petición, y el texto de un resultado idéntico se recuerda en memoria (un resultado nuevo, por ejemplo cada semana, vuelve a pagarse). Tras un arranque en frío la primera petición responde sin esperar al proveedor y el texto se añade en segundo plano.
+- **Cuándo no hay texto:** sin `GROQ_API_KEY`; con `estado = "datos_insuficientes"` (no hay nada que interpretar); si el proveedor falla o tarda más de `LLM_TIMEOUT_S`; si el texto se corta (`finish_reason = length`) o viene vacío; o si el texto no pasa la validación. No se sustituye por la plantilla.
+- **Validación:** se descarta el texto que traiga un número que no esté en los datos enviados, que afirme causalidad («provoca», «genera»...), que use markdown o que pase de 140 palabras. El prompt también pide no usar nombres ni juzgar a la persona, y recordar que una correlación es una pista.
+- **Modelo y costo:** `openai/gpt-oss-120b` con razonamiento bajo (`reasoning_effort = low`) y temperatura 0.2. Es un párrafo corto por persona y por cierre, y en la prueba tardó menos de 2 segundos para dos personas. Para abaratar o acelerar se puede poner `LLM_MODEL=openai/gpt-oss-20b`. No hay modelo de reserva: si falla, no se muestra nada.
+- **Red y datos:** el contenedor necesita salida a internet hacia la API de Groq (`api.groq.com`), y los datos enviados salen de la red del proyecto. La clave se pasa por variable de entorno y no debe subirse al repositorio.
+
 ## 7. API
 
 Todas devuelven JSON. Detalle de campos en [`docs/contrato_backend.md`](docs/contrato_backend.md).
@@ -333,7 +349,7 @@ Todas devuelven JSON. Detalle de campos en [`docs/contrato_backend.md`](docs/con
 | Método y ruta | Qué devuelve |
 |---|---|
 | `GET /correlaciones/metricas` | `{"calculado_en", "correlaciones": [...]}`: una fila por persona y par de métricas. Parámetros opcionales: `usuario_id`, `desde`, `hasta` |
-| `GET /correlaciones/dimensiones` | Igual, una fila por persona y par de dimensiones |
+| `GET /correlaciones/dimensiones` | Igual, una fila por persona y par de dimensiones, más `conclusiones`: una por persona, con el texto de plantilla (`mensaje`) y la lectura del LLM (`interpretacion`, `null` si no hay) |
 | `GET /metricas/catalogo` | Las 28 métricas con nombre, unidad, formato, dirección, frecuencia, dimensión, escala sugerida y franjas de criticidad; `version` cambia sola si cambia algo |
 | `POST /correlaciones/recalcular` | Renueva la caché (uso operativo) |
 | `GET /health` | `{"estado": "ok"}`; no comprueba la base |
@@ -383,7 +399,10 @@ Para comprobar el contenedor contra la base real basta con revisar: que `GET /he
 | `pipeline.py` | `analizar_y_guardar`: procesa los valores de una persona y un periodo y guarda |
 | `db.py` | Conexión, descripción de tablas, lectura de eventos y de resultados, escritura |
 | `correlaciones.py` | Las 11 relaciones, Pearson, significancia y redacción |
-| `cache_correlaciones.py` | Caché en memoria de las correlaciones |
+| `cache_correlaciones.py` | Caché en memoria de las correlaciones y sus conclusiones |
+| `conclusion_dimensiones.py` | Conclusión (texto de plantilla) de las correlaciones entre dimensiones de cada persona |
+| `llm_dimensiones.py` | Lectura de esa conclusión redactada por un LLM, con validación; apagada sin clave |
+| `load_data.py`, `generate_data.py` | Datos sintéticos de demostración (exigen `ALLOW_DEMO_DATA=1`) |
 | `catalogo.py` | Catálogo de métricas para el backend |
 | `docs/contrato_backend.md` | Contrato HTTP con el backend |
 | `docs/correlaciones.md` | Las 11 relaciones del marco y sus hipótesis |

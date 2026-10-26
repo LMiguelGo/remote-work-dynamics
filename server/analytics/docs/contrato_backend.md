@@ -92,7 +92,26 @@ Las relaciones 2 y 9 llegan como dos filas con el mismo `id`.
  "n_muestras": 9, "coeficiente": 0.62, "fuerza": "moderada", "significativa": true}
 ```
 
-Hay 10 pares por persona. No trae texto de diagnóstico. Con `coeficiente = null` o `significativa = false`, el coeficiente es poco confiable. Hoy el backend la lee y la entrega, pero el frontend no la dibuja.
+Hay 10 pares por persona. Las filas no traen texto. Con `coeficiente = null` o `significativa = false`, el coeficiente es poco confiable. El frontend no dibuja la matriz: muestra solo la conclusión de abajo.
+
+La respuesta de `GET /correlaciones/dimensiones` trae además `conclusiones`, una por persona (con `usuario_id` se filtra igual que las filas):
+
+```json
+{"usuario_id": 7, "estado": "relacion", "semanas": 8,
+ "mensaje": "En las 8 semanas con datos, Satisfacción y bienestar (S) y Eficiencia y flujo (E) se mueven juntas (r = 0.97, fuerte). Cuando una baja, la otra tiende a bajar. ...",
+ "interpretacion": "S y E se mueven juntas (r = 0.97) en las 8 semanas con datos ... Es solo una pista: conviene revisar ambas.",
+ "aviso": "Una correlación no implica causalidad; con pocas semanas es solo una pista.",
+ "relaciones": [{"dimension_a": "S", "dimension_b": "E", "coeficiente": 0.97, "fuerza": "fuerte", "sentido": "juntas"}],
+ "sin_datos": ["C"]}
+```
+
+| `estado` | Cuándo | Qué dice `mensaje` |
+|---|---|---|
+| `relacion` | Hay al menos un par significativo y de fuerza moderada o fuerte (se listan hasta 3, las más fuertes) | Qué dimensiones se mueven juntas o en sentido contrario. Si la relación más fuerte es positiva y alguna de sus dos dimensiones no está en óptimo esta semana, añade sus puntajes actuales |
+| `sin_relacion` | Hay coeficientes pero ninguno significativo y al menos moderado | Que no se ve una relación clara |
+| `datos_insuficientes` | Ningún par llega a 5 semanas con ambas dimensiones | Que aún no hay semanas suficientes |
+
+`mensaje` es un texto de plantilla, siempre presente, que el frontend no muestra. `interpretacion` es la lectura que redacta un LLM sobre esos mismos números (`null` si no hay clave, no hay nada que interpretar, el proveedor falló o el texto no pasó la validación): **es el único texto que el frontend muestra**, y sin él no aparece la sección. `puntajes` trae el puntaje y el nivel de cada dimensión en la última semana con datos. `sentido` es `juntas` (coeficiente positivo) o `contrarias` (negativo): todos los puntajes se leen igual, más es mejor. `sin_datos` lista las dimensiones que no llegan al mínimo de semanas con ninguna otra (hoy `C`, que no tiene métricas diarias). `mensaje` es el texto que se imprime y `aviso` la advertencia de causalidad, que va siempre.
 
 ## Catálogo: `GET /metricas/catalogo`
 
