@@ -7,9 +7,11 @@ const ingestaRoutes = require('./routes/ingesta.routes');
 const errorMiddleware = require('./middlewares/error.middleware');
 
 const app = express();
-// Detras del nginx del frontend hay un proxy, asi que confiamos en el primer
-// salto para que el rate limiting vea la IP real del cliente (X-Forwarded-For).
-// Para la demo basta 1 salto; no es critico.
+// Delante del backend hay un unico proxy, Nginx Proxy Manager, asi que se confia
+// en el primer salto para que el rate limiting vea la IP real del cliente por la
+// cabecera X-Forwarded-For. Si mas adelante se agrega otro proxy o un balanceador
+// por delante, hay que subir este numero para que cuente la IP real del cliente y
+// no la del proxy.
 app.set('trust proxy', 1);
 // Cabeceras de seguridad HTTP (OWASP Secure Headers). Antes de las rutas.
 app.use(helmet());
