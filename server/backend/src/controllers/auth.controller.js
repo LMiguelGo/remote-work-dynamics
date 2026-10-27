@@ -54,16 +54,6 @@ async function iniciarSesion(req, res) {
   return res.json(resultado);
 }
 
-// Lista de usuarios para el selector de la demo. ENUMERA cuentas, asi que en
-// produccion se apaga (OWASP: evitar enumeracion de usuarios). Solo vive en la demo.
-async function usuariosDemo(req, res) {
-  if (config.NODE_ENV === 'production') {
-    return res.status(404).json({ error: 'No disponible' });
-  }
-  const lista = await usersRepo.listarDemo(pool);
-  return res.json(lista);
-}
-
 // Cambio de clave del usuario en sesion. Exige la clave actual y una nueva que
 // cumpla la politica. Devuelve un token nuevo (ya sin la marca de cambio obligatorio).
 async function cambiarClave(req, res) {
@@ -196,9 +186,9 @@ async function crearUsuario(req, res) {
   }
 }
 
-// Lista de cuentas para el administrador del sistema. Solo rol admin. No enumera
-// en la demo (esa es usuarios-demo); esta es la via real para que el admin
-// encuentre el id de una cuenta, por ejemplo para restablecerle la clave.
+// Lista de cuentas para el administrador del sistema. Solo rol admin. Es la via
+// para que el admin encuentre el id de una cuenta, por ejemplo para restablecerle
+// la clave. Nunca devuelve el hash de la clave.
 async function listarUsuarios(req, res) {
   const lista = await usersRepo.listar(pool);
   return res.json(lista);
@@ -228,4 +218,4 @@ async function restablecerClave(req, res) {
   });
 }
 
-module.exports = { iniciarSesion, usuariosDemo, cambiarClave, crearUsuario, listarUsuarios, restablecerClave };
+module.exports = { iniciarSesion, cambiarClave, crearUsuario, listarUsuarios, restablecerClave };

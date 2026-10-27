@@ -65,14 +65,6 @@ router.post('/login', limitadorLogin, async (req, res, next) => {
   }
 });
 
-router.get('/usuarios-demo', async (req, res, next) => {
-  try {
-    await authController.usuariosDemo(req, res);
-  } catch (err) {
-    next(err);
-  }
-});
-
 // Cambio de clave del usuario en sesion. No lleva exigeClaveActualizada: es
 // justamente la via para salir del estado de clave temporal.
 router.post('/cambiar-clave', [exigeSesion, exigeJson], async (req, res, next) => {
