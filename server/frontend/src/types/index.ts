@@ -8,13 +8,6 @@ export interface Usuario {
   rol: Role;
 }
 
-// Elemento de GET /api/usuarios-demo (solo existe en desarrollo).
-export interface UsuarioDemo {
-  username: string;
-  full_name: string | null;
-  role_name: Role;
-}
-
 // LEGACY: forma del prototipo. Solo la usan los tipos de abajo (panel, equipo,
 // organización), que se reemplazan cuando se adapten esas vistas a la API nueva.
 export interface User {

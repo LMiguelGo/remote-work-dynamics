@@ -219,7 +219,6 @@ Los endpoints de la API cuelgan del prefijo `/api`. La ingesta de sensores cuelg
 | Método | Ruta | Rol | Descripción |
 |---|---|---|---|
 | `POST` | `/api/login` | público | Entrega un token según usuario y clave |
-| `GET` | `/api/usuarios-demo` | público | Lista de usuarios para el selector de la demo. Apagado en producción |
 | `POST` | `/api/cambiar-clave` | sesión | El usuario cambia su propia clave |
 | `POST` | `/api/usuarios` | admin | Crea una cuenta y asigna su rol, con clave temporal |
 | `POST` | `/api/usuarios/:id/restablecer-clave` | admin | Restablece la clave de una cuenta |
@@ -337,7 +336,7 @@ Sigue OWASP y NIST SP 800-63B.
 - **Sin registro abierto.** Las cuentas las crea el administrador del sistema y les asigna el rol. Nadie ajeno puede crearse una cuenta.
 - **Clave propia por persona.** El administrador entrega una clave temporal y el sistema obliga a cambiarla en el primer ingreso. Mientras no se cambie, las rutas de negocio responden `403` con el código `debe_cambiar_clave`.
 - **Política de contraseñas.** Mínimo doce caracteres, se admiten frases largas, se bloquean las claves comunes o triviales, sin reglas de composición obligatorias y sin rotación periódica forzada.
-- **Sin enumeración de cuentas.** El login responde un error genérico, no dice si falló el usuario o la clave. `/api/usuarios-demo` solo existe en desarrollo.
+- **Sin enumeración de cuentas.** El login responde un error genérico, no dice si falló el usuario o la clave. El usuario se escribe a mano, no hay ninguna ruta que liste las cuentas.
 - **Cuentas desactivables.** Una cuenta inactiva no inicia sesión, sin borrarla.
 
 ## Qué no subir a GitHub
