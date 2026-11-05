@@ -5,13 +5,14 @@ puras: reciben una lista de `Evento` ya leídos de la DB y devuelven el valor cr
 `procesar_metrica`. Devuelven None cuando no hay base de cálculo (por ejemplo, ningún PR revisado en el periodo): un
 periodo sin datos no se guarda como 0. `calcular_metricas` junta todas.
 """
+import json
 from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta, timezone
 from statistics import mean
 
 TZ_LOCAL = timezone(timedelta(hours=-5))  # Colombia, sin horario de verano
 
-DURACION_PACTADA_H = 8.0  # jornada contratada, para el % de tiempo extralaboral
+DURACION_PACTADA_H = 8.0  # jornada contratada cuando el empleado no tiene una definida (ver `horas_jornada`)
 TIPOS_FALLO = ("Bug", "Incident")
 ESTADOS_HECHO = ("done", "closed")
 ESTADOS_EN_CURSO = ("in progress", "en progreso")
@@ -109,10 +110,50 @@ def sesiones_trabajo(eventos: list, desde: datetime, hasta: datetime) -> list:
     return sorted((a, b) for a, b in sesiones if _en_periodo(a, desde, hasta))
 
 
+def _minutos(texto) -> int | None:
+    """'HH:MM' -> minutos desde medianoche; None si no tiene ese formato."""
+    try:
+        h, m = str(texto).split(":")[:2]
+        h, m = int(h), int(m)
+    except ValueError:
+        return None
+    return h * 60 + m if 0 <= h < 24 and 0 <= m < 60 else None
+
+
+def horas_jornada(work_schedule) -> float:
+    """Horas pactadas por día de un empleado, a partir de `employee_profiles.work_schedule` (JSONB):
+    1) `horas_dia`, si existe y está entre 0 y 24 (exclusivo el 0);
+    2) si no, `hora_fin` - `hora_inicio` menos lo que duran los `descansos` (`[{"inicio": "12:00", "fin": "13:00"}, ...]`),
+       contando de cada descanso solo lo que cae dentro de la jornada;
+    3) si falta o es inválido, `DURACION_PACTADA_H`."""
+    if isinstance(work_schedule, str):
+        try:
+            work_schedule = json.loads(work_schedule)
+        except ValueError:
+            return DURACION_PACTADA_H
+    if not isinstance(work_schedule, dict):
+        return DURACION_PACTADA_H
+    horas = work_schedule.get("horas_dia")
+    if isinstance(horas, (int, float)) and not isinstance(horas, bool) and 0 < horas <= 24:
+        return float(horas)
+    inicio, fin = _minutos(work_schedule.get("hora_inicio")), _minutos(work_schedule.get("hora_fin"))
+    if inicio is None or fin is None or fin <= inicio:
+        return DURACION_PACTADA_H
+    descansos = work_schedule.get("descansos")
+    pausa = 0
+    for d in descansos if isinstance(descansos, list) else []:
+        a, b = (_minutos(d.get("inicio")), _minutos(d.get("fin"))) if isinstance(d, dict) else (None, None)
+        if a is not None and b is not None:
+            pausa += max(0, min(b, fin) - max(a, inicio))
+    neto = (fin - inicio - pausa) / 60
+    return round(neto, 2) if neto > 0 else DURACION_PACTADA_H
+
+
 def pct_tiempo_extralaboral(eventos: list, desde: datetime, hasta: datetime,
                             duracion_pactada_h: float = DURACION_PACTADA_H) -> float | None:
     """(Horas trabajadas en el periodo - jornada pactada) / jornada pactada x 100. No baja de 0: trabajar menos
-    no es extralaboral. Se suman las sesiones del periodo (una jornada puede tener varias)."""
+    no es extralaboral. Se suman las sesiones del periodo (una jornada puede tener varias). La jornada pactada es la de
+    cada empleado (`horas_jornada`); sin ella se usan `DURACION_PACTADA_H` horas."""
     sesiones = sesiones_trabajo(eventos, desde, hasta)
     if not sesiones or duracion_pactada_h <= 0:
         return None
@@ -332,15 +373,16 @@ def prs_cerrados_sprint(eventos: list, desde: datetime, hasta: datetime) -> int:
 # ---------- Todas las métricas ----------
 
 def calcular_metricas(eventos: list, desde: datetime, hasta: datetime, sprint: tuple | None = None,
-                      cal: CalendarioLaboral = CalendarioLaboral()) -> dict:
+                      cal: CalendarioLaboral = CalendarioLaboral(), jornada_pactada_h: float = DURACION_PACTADA_H) -> dict:
     """{métrica: valor crudo} de todas las métricas con datos en [desde, hasta), listo para `analizar_y_guardar`.
     `sprint` = (desde, hasta) del sprint cuando se cierra uno; sin él no se calculan las tres métricas por sprint.
+    `jornada_pactada_h` = horas pactadas por día del empleado (ver `horas_jornada`), base del tiempo extralaboral.
     `eventos` debe traer también el historial reciente (commits para `dias_sin_commits`, issue_created de los tickets
     resueltos). Las métricas sin base de cálculo se omiten."""
     tickets = construir_tickets(eventos)
     ventanas = sesiones_trabajo(eventos, desde, hasta)
     valores = {
-        "tiempo_extralaboral_pct": pct_tiempo_extralaboral(eventos, desde, hasta),
+        "tiempo_extralaboral_pct": pct_tiempo_extralaboral(eventos, desde, hasta, jornada_pactada_h),
         "rating_seguridad_sonarqube": rating_seguridad(eventos, desde, hasta),
         "fiabilidad_prs": fiabilidad_prs(eventos, desde, hasta),
         "tiempo_respuesta_pr_horas": tiempo_respuesta_pr_horas(eventos, desde, hasta),

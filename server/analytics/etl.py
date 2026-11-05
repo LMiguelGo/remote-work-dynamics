@@ -9,8 +9,8 @@ El sprint es la semana calendario (lunes a domingo) hasta que se conozcan las fe
 from datetime import date, datetime, timedelta
 
 from correlaciones import METRICAS_SEMANALES
-from db import cargar_eventos, existe_analisis, puntajes_diarios
-from derivadas import calcular_metricas, historicos_sprints
+from db import cargar_eventos, cargar_jornadas, existe_analisis, puntajes_diarios
+from derivadas import DURACION_PACTADA_H, calcular_metricas, historicos_sprints
 from pipeline import analizar_y_guardar
 
 LOOKBACK_DIAS = 90        # historial que piden commits, tickets y sprints anteriores
@@ -26,10 +26,13 @@ def cierre_dia(dia: date) -> dict[int, dict]:
     Devuelve {usuario_id: {dimension: id}}; los usuarios ya analizados ese día se omiten."""
     desde, hasta = _inicio_dia(dia), _inicio_dia(dia + timedelta(days=1))
     guardados = {}
+    jornadas = cargar_jornadas()  # horas pactadas por día de cada empleado, base del tiempo extralaboral
     for usuario, eventos in cargar_eventos(desde - timedelta(days=LOOKBACK_DIAS), hasta).items():
         if existe_analisis(usuario, dia, dia):
             continue
-        valores = {m: v for m, v in calcular_metricas(eventos, desde, hasta).items() if m not in METRICAS_SEMANALES}
+        valores = {m: v for m, v in calcular_metricas(eventos, desde, hasta,
+                                                      jornada_pactada_h=jornadas.get(usuario, DURACION_PACTADA_H)).items()
+                   if m not in METRICAS_SEMANALES}
         if valores:
             guardados[usuario] = analizar_y_guardar(usuario, dia, dia, valores)
     return guardados

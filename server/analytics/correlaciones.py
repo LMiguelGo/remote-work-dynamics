@@ -103,9 +103,6 @@ ETIQUETAS = {
     "perdida_paquetes_pct": "la pérdida de paquetes",
 }
 
-JORNADA_HORAS = 8.0  # base para convertir % extralaboral en horas (<= 5 % equivale a 8.4 h en metricas_umbrales.md)
-
-
 def _comp(v, h, unidad, factor=1.0):
     """Texto que compara el valor actual con lo habitual del propio usuario."""
     if h is None:
@@ -118,7 +115,7 @@ def _comp(v, h, unidad, factor=1.0):
 
 # Cómo se describe cada métrica en una frase (v = valor actual del usuario, h = su promedio habitual o None).
 FRASES = {
-    "tiempo_extralaboral_pct": lambda v, h: f"el usuario ha trabajado {v / 100 * JORNADA_HORAS:.1f} h extra por día{_comp(v, h, 'h', JORNADA_HORAS / 100)}",
+    "tiempo_extralaboral_pct": lambda v, h: f"el usuario ha trabajado un {v:.0f}% más de su jornada pactada{_comp(v, h, 'pp')}",
     "fiabilidad_prs": lambda v, h: f"el {v:.0f}% de sus PRs fue aprobado al primer intento{_comp(v, h, 'pp')}",
     "ruido_ambiental": lambda v, h: f"el ruido en su puesto promedia {v:.0f} dB{_comp(v, h, 'dB')}",
     "temperatura": lambda v, h: f"la temperatura de su puesto promedia {v:.1f} °C{_comp(v, h, '°C')}",
