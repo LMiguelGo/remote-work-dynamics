@@ -38,7 +38,7 @@ Variables de entorno (la conexión se arma sola con las mismas variables que usa
 | `POSTGRES_PASSWORD` | `postgres_password` | Clave (puede llevar cualquier carácter) |
 | `POSTGRES_DB` | `rwd_database` | Base |
 
-El usuario necesita: `SELECT` en `events` y `data_sources`, y `SELECT` e `INSERT` en `dimension_analyses` y `metric_analyses`. Hoy el compose usa el superusuario `postgres`; en producción conviene un usuario con solo esos permisos.
+El usuario necesita: `SELECT` en `events`, `data_sources` y `employee_profiles`, y `SELECT` e `INSERT` en `dimension_analyses` y `metric_analyses`. Hoy el compose usa el superusuario `postgres`; en producción conviene un usuario con solo esos permisos.
 
 ### Cargar datos de prueba
 
@@ -74,6 +74,7 @@ SELECT d.user_id, d.source_type, e.event_type, e.time, e.payload
 |---|---|---|
 | `events` | `id`, `time`, `source_id`, `event_type`, `payload` | Entrada de todos los cálculos |
 | `data_sources` | `id`, `user_id`, `source_type`, `identifier`, `is_active` | Saber de quién es cada evento |
+| `employee_profiles` | `user_id`, `work_schedule` | Jornada pactada de cada empleado (base del tiempo extralaboral). Formato en la sección 8 |
 | `dimension_analyses` | `id`, `user_id`, `dimension`, `start_date`, `end_date`, `normalized_score`, `criticality_status`, `calculated_at`, `frequency` | Resultado por dimensión |
 | `metric_analyses` | `id`, `dimension_analysis_id`, `user_id`, `start_date`, `end_date`, `metric_name`, `raw_value`, `normalized_value`, `criticality` | Resultado por métrica |
 
@@ -136,7 +137,7 @@ Funciones puras sin acceso a la base: reciben los eventos ya leídos y un period
 
 | Métrica | Evento y campo | Cálculo |
 |---|---|---|
-| `tiempo_extralaboral_pct` | `working_session`: `start_time`, `end_time` | (horas de las sesiones del periodo − 8) / 8 × 100, mínimo 0 |
+| `tiempo_extralaboral_pct` | `working_session`: `start_time`, `end_time`; jornada pactada de `employee_profiles.work_schedule` | (horas de las sesiones del periodo − jornada pactada del empleado) / jornada pactada × 100, mínimo 0 |
 | `enps` | `daily_survey.satisfaction_level` | promedio del periodo |
 | `fatiga` | `daily_survey.fatigue_level` | promedio |
 | `percepcion_herramientas` | `daily_survey.tools_perception` | promedio |
@@ -213,7 +214,7 @@ Es lo mismo que sirve `GET /metricas/catalogo` (que es la fuente a consultar por
 
 | Dim. | Métrica (`clave`) | Unidad | Frecuencia | 🟢 Óptimo | 🟡 Precaución | 🔴 Crítico |
 |---|---|---|---|---|---|---|
-| S | Tiempo extralaboral (`tiempo_extralaboral_pct`) | % de la jornada | diaria | ≤ 5 | > 5 y ≤ 15 | > 15 |
+| S | Tiempo extralaboral (`tiempo_extralaboral_pct`) | % sobre la jornada pactada | diaria | ≤ 5 | > 5 y ≤ 37.5 | > 37.5 |
 | S | Ánimo (eNPS) (`enps`) | /5 | diaria | ≥ 4 | ≥ 3 y < 4 | < 3 |
 | S | Fatiga (`fatiga`) | /5 | diaria | ≤ 2 | > 2 y ≤ 3.5 | > 3.5 |
 | S | Percepción de herramientas (`percepcion_herramientas`) | /5 | diaria | ≥ 4 | ≥ 3 y < 4 | < 3 |
@@ -355,7 +356,7 @@ Se siguen estos valores hasta confirmarlos con datos reales:
 | Supuesto | Valor actual | Dónde cambiarlo |
 |---|---|---|
 | Zona horaria de las marcas | Colombia, UTC-5 sin horario de verano | `derivadas.TZ_LOCAL` |
-| Jornada pactada | 8 horas, igual para todos (`employee_profiles.work_schedule` no se lee) | `DURACION_PACTADA_H` |
+| Jornada pactada | La de cada empleado, de `employee_profiles.work_schedule`: `horas_dia` si existe; si no, `hora_fin` − `hora_inicio` − `descansos`; sin datos válidos, 8 h | `derivadas.horas_jornada`, `DURACION_PACTADA_H` |
 | Horario laboral | Lunes a viernes, 8:00 a 16:00, sin festivos | `CalendarioLaboral` |
 | Inactividad que excluye un intervalo de un ticket | 5 días corridos | `MAX_DIAS_INACTIVIDAD` |
 | Estados de Jira resuelto / en curso | Done, Closed / In Progress, En progreso | `ESTADOS_HECHO`, `ESTADOS_EN_CURSO` |

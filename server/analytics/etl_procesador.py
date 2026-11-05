@@ -124,7 +124,9 @@ CONFIGURACION_METRICAS = {
     # ==========================================
     # S - SATISFACCIÓN Y BIENESTAR
     # ==========================================
-    "tiempo_extralaboral_pct": {"tipo": "inversa", "args": (5.0, 15.0, 50.0)}, # % sobre la jornada
+    # % sobre la jornada pactada del propio empleado: óptimo hasta +5 %, precaución hasta +37.5 % (con 8 h pactadas, 11 h
+    # trabajadas) y crítico por encima; el puntaje llega a 0 al duplicar la jornada (+100 %).
+    "tiempo_extralaboral_pct": {"tipo": "inversa", "args": (5.0, 37.5, 100.0)},
     "enps": {"tipo": "directa", "args": (4.0, 3.0, 1.0)},
     "fatiga": {"tipo": "inversa", "args": (2.0, 3.5, 5.0)},
     "percepcion_herramientas": {"tipo": "directa", "args": (4.0, 3.0, 1.0)},

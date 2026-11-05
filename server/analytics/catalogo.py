@@ -47,7 +47,7 @@ DEFINICIONES = {
 # quien dibuja amplía el eje; las franjas siguen siendo las mismas.
 ESCALAS = {
     "enps": (1, 5), "fatiga": (1, 5), "percepcion_herramientas": (1, 5), "encuestas_tcs": (1, 5), "percepcion_documentacion": (1, 5),
-    "fiabilidad_prs": (0, 100), "cobertura_codigo": (0, 100), "commits_documentacion": (0, 30), "tiempo_extralaboral_pct": (0, 50),
+    "fiabilidad_prs": (0, 100), "cobertura_codigo": (0, 100), "commits_documentacion": (0, 30), "tiempo_extralaboral_pct": (0, 100),
     "temperatura": (14, 30), "humedad": (20, 80), "rating_seguridad_sonarqube": (0.5, 5.5),
 }
 

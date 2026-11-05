@@ -6,7 +6,7 @@ from sqlalchemy import (JSON, BigInteger, Boolean, Column, Date, DateTime, Enum,
                         create_engine, insert, select)
 from sqlalchemy.engine import URL
 
-from derivadas import TZ_LOCAL, Evento
+from derivadas import TZ_LOCAL, Evento, horas_jornada
 from etl_procesador import METRICA_DIMENSION, RATING_SONAR_NUMERICO, consolidar_dimension
 
 # El esquema lo crea el contenedor de DB (ver rwd_database.png); aquí solo se describen las tablas para leer/escribir.
@@ -70,10 +70,26 @@ events = Table(
     Column("payload", JSON),  # jsonb en PostgreSQL
 )
 
+# Perfil del empleado: de aquí sale su jornada pactada (`work_schedule`, ver `derivadas.horas_jornada`).
+employee_profiles = Table(
+    "employee_profiles", metadata,
+    Column("id", Integer, primary_key=True),
+    Column("user_id", Integer),
+    Column("work_schedule", JSON),  # jsonb en PostgreSQL
+)
+
 
 @lru_cache(maxsize=1)
 def get_engine():
     return create_engine(url_conexion(), pool_pre_ping=True)
+
+
+def cargar_jornadas() -> dict[int, float]:
+    """{usuario_id: horas pactadas por día} de los empleados con perfil. Quien no tenga perfil no aparece: el llamador usa
+    la jornada por defecto."""
+    with get_engine().connect() as conn:
+        filas = conn.execute(select(employee_profiles.c.user_id, employee_profiles.c.work_schedule)).all()
+    return {usuario: horas_jornada(horario) for usuario, horario in filas}
 
 
 def url_conexion():
