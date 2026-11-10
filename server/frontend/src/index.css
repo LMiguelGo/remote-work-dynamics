@@ -1545,6 +1545,47 @@ table.tabla {
   gap: 12px;
 }
 
+/* Zona de las dos gráficas: al pasar el puntero (o enfocarla con el teclado) muestra "Cómo se obtuvo" */
+.an-corr-zona {
+  position: relative;
+}
+.an-corr-zona.con-tec {
+  cursor: help;
+  border-radius: 6px;
+}
+.an-corr-zona.con-tec:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 4px;
+}
+.an-corr-tec {
+  display: none;
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 20;
+  pointer-events: none;
+  background: #fff;
+  border: 1px solid var(--ink2);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--ink);
+  box-shadow: 0 6px 20px rgba(20, 40, 90, 0.18);
+}
+.an-corr-zona.con-tec:hover .an-corr-tec,
+.an-corr-zona.con-tec:focus-within .an-corr-tec {
+  display: block;
+}
+.an-corr-tec-tit {
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+.an-corr-tec p {
+  margin: 4px 0 0;
+}
+
 @media (max-width: 560px) {
   .an-corr-dos {
     grid-template-columns: 1fr;

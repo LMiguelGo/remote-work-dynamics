@@ -379,6 +379,15 @@ export interface CorrelacionMetricas {
   estado: EstadoCorrelacion;
   mensaje: string; // el texto que se imprime siempre
   aviso: string | null;
+  explicacion?: ExplicacionCorrelacion; // cómo se obtuvo; se muestra al pasar el puntero por las gráficas
+}
+
+// Líneas cortas que explican la técnica detrás de una correlación. calculo es null si no hay coeficiente.
+export interface ExplicacionCorrelacion {
+  compara: string;
+  calculo: string | null;
+  confianza: string;
+  esperado: string;
 }
 
 export interface CorrelacionDimensiones {
