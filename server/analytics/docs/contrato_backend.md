@@ -49,7 +49,13 @@ Parámetro opcional de los dos primeros: `usuario_id`. Con `desde` o `hasta` (`A
   "mensaje": "Trabajó un 18 % más de su jornada pactada (normalmente, 7 %), y su trabajo está pasando menos revisiones a la primera: el 62 % de sus cambios de código se aprobó en la primera revisión (normalmente, 85 %).",
   "aviso": "Que dos cosas cambien juntas no prueba que una cause la otra.",
   "conclusion": "(igual a mensaje cuando estado es diagnostico)",
-  "detalle": "En sus últimos 12 días, las horas extra y las revisiones aprobadas a la primera han cambiado a la par, como se esperaba. Que dos cosas cambien juntas no prueba que una cause la otra."
+  "detalle": "En sus últimos 12 días, las horas extra y las revisiones aprobadas a la primera han cambiado a la par, como se esperaba. Que dos cosas cambien juntas no prueba que una cause la otra.",
+  "explicacion": {
+    "compara": "Compara día a día, durante 12 días: sus horas extra y el % de sus cambios de código aprobados en la primera revisión.",
+    "calculo": "Correlación de Pearson, r = −0,71. Va de −1 a 1: cerca de 0 no tienen relación, y cuanto más se acerca a 1 o a −1, más van de la mano. El signo menos indica que cuando una sube, la otra baja.",
+    "confianza": "Prueba t al 95 %: es poco probable que sea casualidad.",
+    "esperado": "Se esperaba que más horas extra llevaran a menos aprobaciones a la primera, porque el cansancio aumenta los errores."
+  }
 }
 ```
 (Ejemplo con valores inventados.)
@@ -73,6 +79,7 @@ Parámetro opcional de los dos primeros: `usuario_id`. Con `desde` o `hasta` (`A
 | `estado` | Cómo tratar la tarjeta (tabla siguiente) |
 | `mensaje` | **El texto que se imprime siempre**: la conclusión si hay diagnóstico y, si no, el texto neutro que explica el estado |
 | `aviso` | "Que dos cosas cambien juntas no prueba que una cause la otra." con `diagnostico` y `patron_distinto`; `null` en los demás. Debe verse junto al mensaje cuando viene |
+| `explicacion` | Cómo se obtuvo la relación, en cuatro textos cortos para quien no sabe estadística: `compara` (qué medidas, cada cuánto y en cuántos periodos), `calculo` (el coeficiente de Pearson y cómo leerlo; `null` si no hay coeficiente), `confianza` (resultado de la prueba t al 95 % o por qué no se calcula) y `esperado` (lo que plantea el marco). El frontend lo muestra al pasar el puntero por las gráficas de la tarjeta |
 | `conclusion` | Solo la conclusión redactada (`estado = diagnostico`); si no, `null`. Ya está dentro de `mensaje` |
 | `detalle` | Texto técnico corto con el coeficiente y las muestras. Ya está dentro de `mensaje` cuando no hay diagnóstico |
 

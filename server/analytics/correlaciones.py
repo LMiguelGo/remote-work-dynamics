@@ -223,6 +223,71 @@ PLANTILLA_SOLO_B = "{A}, pero {b}. Esta vez el problema en {eb} no parece venir 
 PLANTILLA_SIN_HISTORICO = "{A}; {b}."
 
 
+# ---- Explicación técnica corta (se muestra al pasar el puntero sobre las gráficas de la tarjeta) ----
+# Qué se compara de cada métrica, dicho para cualquier persona.
+QUE_SE_COMPARA = {
+    "tiempo_extralaboral_pct": "sus horas extra", "fiabilidad_prs": "el % de sus cambios de código aprobados en la primera revisión",
+    "ruido_ambiental": "el ruido de su puesto", "temperatura": "la temperatura de su puesto",
+    "deuda_tecnica_horas": "las horas de arreglos pendientes en su código", "enps": "su ánimo",
+    "cobertura_codigo": "el % de su código revisado por pruebas automáticas",
+    "tiempo_respuesta_pr_horas": "las horas que tarda en responder revisiones", "tiempo_ciclo_dias": "los días que tardan sus tareas",
+    "tiempo_bloqueado_pct": "el % del tiempo con tareas detenidas", "commits_documentacion": "el % de sus cambios que son documentación",
+    "mttr_horas": "las horas que tarda en resolver un fallo", "story_points_completados_sprint": "los puntos de trabajo completados",
+    "dias_sin_commits": "los días seguidos sin subir cambios", "latencia_red_ms": "la demora de su conexión",
+    "perdida_paquetes_pct": "la pérdida de datos de su conexión",
+}
+
+# Lo que plantea el marco para cada relación (versión corta de "hipotesis"), para completar "Se esperaba ...".
+SE_ESPERABA = {
+    1: "que más horas extra llevaran a menos aprobaciones a la primera, porque el cansancio aumenta los errores.",
+    2: "que más ruido o una temperatura incómoda llevaran a más arreglos pendientes, porque cuesta concentrarse.",
+    3: "que menos ánimo llevara a menos pruebas en su código, porque se toman atajos.",
+    4: "que revisiones más lentas hicieran que sus tareas tarden más en terminarse.",
+    5: "que revisiones más lentas aumentaran el tiempo con tareas detenidas.",
+    6: "que menos documentación aumentara el tiempo para resolver fallos.",
+    7: "que menos trabajo completado junto con más horas extra fuera una señal de sobrecarga.",
+    8: "que más días sin subir cambios llevaran a más horas extra para ponerse al día.",
+    9: "que una conexión peor aumentara el tiempo con tareas detenidas, por causas ajenas a la persona.",
+    10: "que una conexión más lenta hiciera que suba cambios con menos frecuencia.",
+    11: "que más tiempo con tareas detenidas bajara su ánimo.",
+}
+NOTA_TEMPERATURA = f" La temperatura se mide como distancia a {TEMPERATURA_CONFORT:.0f} °C, así que cuentan el frío y el calor."
+
+
+def _que_se_compara(metrica: str, periodo: str) -> str:
+    """Una métrica diaria dentro de una relación semanal se resume por semana (promedio, o la racha más larga)."""
+    texto = QUE_SE_COMPARA[metrica]
+    if periodo == "semana" and metrica not in METRICAS_SEMANALES:
+        texto += " (la racha más larga de la semana)" if metrica in AGREGACION else " (promedio de la semana)"
+    return texto
+
+
+def _r_texto(r: float) -> str:
+    return f"{r:.2f}".replace(".", ",").replace("-", "−")
+
+
+def _explicacion(c: dict, ma: str, mb: str, periodo: str, n: int, r, estado: str) -> dict:
+    """Cuatro líneas cortas que explican cómo se obtuvo la relación: qué se compara, el cálculo, la confianza
+    y lo que se esperaba. `calculo` es None cuando no hay coeficiente."""
+    cadencia = "día a día" if periodo == "dia" else "semana a semana"
+    durante = f", durante {n} {_unidad(n, periodo)}" if n else ""
+    compara = f"Compara {cadencia}{durante}: {_que_se_compara(ma, periodo)} y {_que_se_compara(mb, periodo)}."
+    calculo = None
+    if r is not None:
+        calculo = (f"Correlación de Pearson, r = {_r_texto(r)}. Va de −1 a 1: cerca de 0 no tienen relación, y cuanto "
+                   f"más se acerca a 1 o a −1, más van de la mano.")
+        if r < 0:
+            calculo += " El signo menos indica que cuando una sube, la otra baja."
+    confianza = {
+        "diagnostico": "Prueba t al 95 %: es poco probable que sea casualidad.",
+        "patron_distinto": "Prueba t al 95 %: es poco probable que sea casualidad, pero va en sentido contrario al esperado.",
+        "no_significativa": "Prueba t al 95 %: con estos datos podría ser casualidad.",
+    }.get(estado, f"No se calcula: se necesitan al menos {MIN_MUESTRAS} {_unidad(MIN_MUESTRAS, periodo)} "
+                  f"con ambas medidas y que las dos cambien.")
+    esperado = "Se esperaba " + SE_ESPERABA[c["id"]] + (NOTA_TEMPERATURA if "temperatura" in (ma, mb) else "")
+    return {"compara": compara, "calculo": calculo, "confianza": confianza, "esperado": esperado}
+
+
 def _periodo(c: dict) -> str:
     """Semanal si alguna de las métricas de la correlación solo existe una vez por semana."""
     metricas = c["metricas_a"] + c["metricas_b"]
@@ -396,6 +461,7 @@ def correlacionar_metricas(filas: list[dict]) -> list[dict]:
                         "aviso": AVISO_CAUSALIDAD if estado in ("diagnostico", "patron_distinto") else None,
                         "conclusion": conclusion,
                         "detalle": detalle,
+                        "explicacion": _explicacion(c, ma, mb, periodo, n, r, estado),
                     })
     return resultados
 

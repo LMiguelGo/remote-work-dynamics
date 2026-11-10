@@ -1,5 +1,5 @@
 import React from 'react';
-import type { CorrelacionMetricas, EstadoMetricaCorrelacion, MetricaDetalle } from '../../types';
+import type { CorrelacionMetricas, EstadoMetricaCorrelacion, ExplicacionCorrelacion, MetricaDetalle } from '../../types';
 import { ESTADO_CORRELACION, FUERZA_CORRELACION, formatearValor, ordenarCorrelaciones } from '../../utils/analitica';
 
 type MetricasPorNombre = Map<string, MetricaDetalle>;
@@ -55,7 +55,26 @@ const Encabezado: React.FC<{ metrica: MetricaDetalle | undefined; nombre: string
   </div>
 );
 
+// Recuadro con la técnica detrás de la relación (qué se compara, cálculo, confianza y lo esperado). Aparece al pasar el
+// puntero por las gráficas o al enfocarlas con el teclado.
+const ExplicacionTecnica: React.FC<{ e: ExplicacionCorrelacion; id: string }> = ({ e, id }) => (
+  <div className="an-corr-tec" role="tooltip" id={id}>
+    <div className="an-corr-tec-tit">Cómo se obtuvo</div>
+    <p>{e.compara}</p>
+    {e.calculo && (
+      <p>
+        <b>Cálculo:</b> {e.calculo}
+      </p>
+    )}
+    <p>
+      <b>Confianza:</b> {e.confianza}
+    </p>
+    <p>{e.esperado}</p>
+  </div>
+);
+
 const TarjetaCorrelacion: React.FC<{ c: CorrelacionMetricas; metricas: MetricasPorNombre }> = ({ c, metricas }) => {
+  const tecId = React.useId();
   // Un estado que este frontend no conoce se muestra tal cual y sin énfasis, en vez de romper la tarjeta.
   const e = ESTADO_CORRELACION[c.estado] ?? { texto: String(c.estado), clase: 'tenue' };
   const serie = c.serie ?? [];
@@ -69,20 +88,27 @@ const TarjetaCorrelacion: React.FC<{ c: CorrelacionMetricas; metricas: MetricasP
         <span className={`an-est ${e.clase}`}>{e.texto}</span>
       </div>
       <p className={`an-corr-msg${c.estado === 'diagnostico' ? '' : ' sin'}`}>{c.mensaje}</p>
-      <div className="an-corr-dos">
-        <div>
-          <Encabezado metrica={ma} nombre={c.metrica_a} est={c.a} />
-          <Linea valores={serie.map((s) => s[1])} habitual={c.a?.habitual} color="var(--amber)" />
+      <div
+        className={`an-corr-zona${c.explicacion ? ' con-tec' : ''}`}
+        tabIndex={c.explicacion ? 0 : undefined}
+        aria-describedby={c.explicacion ? tecId : undefined}
+      >
+        <div className="an-corr-dos">
+          <div>
+            <Encabezado metrica={ma} nombre={c.metrica_a} est={c.a} />
+            <Linea valores={serie.map((s) => s[1])} habitual={c.a?.habitual} color="var(--amber)" />
+          </div>
+          <div>
+            <Encabezado metrica={mb} nombre={c.metrica_b} est={c.b} />
+            <Linea valores={serie.map((s) => s[2])} habitual={c.b?.habitual} color="var(--blue)" />
+          </div>
         </div>
-        <div>
-          <Encabezado metrica={mb} nombre={c.metrica_b} est={c.b} />
-          <Linea valores={serie.map((s) => s[2])} habitual={c.b?.habitual} color="var(--blue)" />
-        </div>
+        {c.explicacion && <ExplicacionTecnica e={c.explicacion} id={tecId} />}
       </div>
       <div className="an-corr-pie">
         {c.coeficiente != null && (
-          // El coeficiente queda al pasar el mouse: el gerente lee la frase y quien sepa estadística puede verificarlo.
-          <span title={`r = ${c.coeficiente.toFixed(2).replace('.', ',')} · n = ${c.n_muestras}`}>
+          // El coeficiente y la prueba están en el recuadro "Cómo se obtuvo"; aquí solo la frase.
+          <span>
             {FUERZA_CORRELACION[c.fuerza] ?? 'Relación'} · basada en {periodos}
           </span>
         )}
