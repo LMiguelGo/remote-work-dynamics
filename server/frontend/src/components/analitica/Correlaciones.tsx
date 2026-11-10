@@ -1,6 +1,6 @@
 import React from 'react';
 import type { CorrelacionMetricas, EstadoMetricaCorrelacion, MetricaDetalle } from '../../types';
-import { ESTADO_CORRELACION, formatearValor, ordenarCorrelaciones } from '../../utils/analitica';
+import { ESTADO_CORRELACION, FUERZA_CORRELACION, formatearValor, ordenarCorrelaciones } from '../../utils/analitica';
 
 type MetricasPorNombre = Map<string, MetricaDetalle>;
 
@@ -61,12 +61,11 @@ const TarjetaCorrelacion: React.FC<{ c: CorrelacionMetricas; metricas: MetricasP
   const serie = c.serie ?? [];
   const ma = metricas.get(c.metrica_a);
   const mb = metricas.get(c.metrica_b);
+  const periodos = `${c.n_muestras} ${c.periodo === 'dia' ? (c.n_muestras === 1 ? 'día' : 'días') : c.n_muestras === 1 ? 'semana' : 'semanas'}`;
   return (
     <div className="an-corr">
       <div className="an-corr-ctx">
-        <span>
-          {c.dimension_a} × {c.dimension_b} · {c.contexto}
-        </span>
+        <span title={`Dimensiones ${c.dimension_a} y ${c.dimension_b}`}>{c.contexto}</span>
         <span className={`an-est ${e.clase}`}>{e.texto}</span>
       </div>
       <p className={`an-corr-msg${c.estado === 'diagnostico' ? '' : ' sin'}`}>{c.mensaje}</p>
@@ -82,11 +81,12 @@ const TarjetaCorrelacion: React.FC<{ c: CorrelacionMetricas; metricas: MetricasP
       </div>
       <div className="an-corr-pie">
         {c.coeficiente != null && (
-          <span className="an-mono">
-            r = {c.coeficiente.toFixed(2)} · {c.fuerza} · n = {c.n_muestras}
+          // El coeficiente queda al pasar el mouse: el gerente lee la frase y quien sepa estadística puede verificarlo.
+          <span title={`r = ${c.coeficiente.toFixed(2).replace('.', ',')} · n = ${c.n_muestras}`}>
+            {FUERZA_CORRELACION[c.fuerza] ?? 'Relación'} · basada en {periodos}
           </span>
         )}
-        <span>{c.aviso ?? `${c.n_muestras} ${c.periodo === 'dia' ? 'días' : 'semanas'} con ambas métricas`}</span>
+        <span>{c.aviso ?? (c.coeficiente == null ? `${periodos} con ambas medidas` : null)}</span>
       </div>
     </div>
   );

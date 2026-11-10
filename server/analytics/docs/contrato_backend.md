@@ -32,7 +32,7 @@ Parámetro opcional de los dos primeros: `usuario_id`. Con `desde` o `hasta` (`A
   "id": 1,
   "dimension_a": "S",
   "dimension_b": "P",
-  "contexto": "Salud Laboral y Calidad",
+  "contexto": "Horas extra y calidad del código",
   "metrica_a": "tiempo_extralaboral_pct",
   "metrica_b": "fiabilidad_prs",
   "relacion_esperada": "inversa",
@@ -46,10 +46,10 @@ Parámetro opcional de los dos primeros: `usuario_id`. Con `desde` o `hasta` (`A
   "fuerza": "fuerte",
   "significativa": true,
   "estado": "diagnostico",
-  "mensaje": "El usuario ha trabajado 1.5 h extra por día, 1.0 h más de lo habitual, por lo que su calidad de entrega se ha visto afectada: el 62% de sus PRs fue aprobado al primer intento, 23.0 pp menos de lo habitual.",
-  "aviso": "Una correlación no implica causalidad.",
+  "mensaje": "Trabajó un 18 % más de su jornada pactada (normalmente, 7 %), y su trabajo está pasando menos revisiones a la primera: el 62 % de sus cambios de código se aprobó en la primera revisión (normalmente, 85 %).",
+  "aviso": "Que dos cosas cambien juntas no prueba que una cause la otra.",
   "conclusion": "(igual a mensaje cuando estado es diagnostico)",
-  "detalle": "Relación significativa (r = -0.71, n = 12). Una correlación no implica causalidad."
+  "detalle": "En sus últimos 12 días, las horas extra y las revisiones aprobadas a la primera han cambiado a la par, como se esperaba. Que dos cosas cambien juntas no prueba que una cause la otra."
 }
 ```
 (Ejemplo con valores inventados.)
@@ -72,7 +72,7 @@ Parámetro opcional de los dos primeros: `usuario_id`. Con `desde` o `hasta` (`A
 | `significativa` | `true` si supera la prueba estadística al 95 % |
 | `estado` | Cómo tratar la tarjeta (tabla siguiente) |
 | `mensaje` | **El texto que se imprime siempre**: la conclusión si hay diagnóstico y, si no, el texto neutro que explica el estado |
-| `aviso` | "Una correlación no implica causalidad." con `diagnostico` y `patron_distinto`; `null` en los demás. Debe verse junto al mensaje cuando viene |
+| `aviso` | "Que dos cosas cambien juntas no prueba que una cause la otra." con `diagnostico` y `patron_distinto`; `null` en los demás. Debe verse junto al mensaje cuando viene |
 | `conclusion` | Solo la conclusión redactada (`estado = diagnostico`); si no, `null`. Ya está dentro de `mensaje` |
 | `detalle` | Texto técnico corto con el coeficiente y las muestras. Ya está dentro de `mensaje` cuando no hay diagnóstico |
 
@@ -162,4 +162,4 @@ Para quien consume este contrato:
 
 - **Cambia libremente:** el texto de `mensaje`, `aviso`, `detalle` y `contexto`; los números; las correlaciones y las métricas que existen; los umbrales y la escala del catálogo (por eso `version`).
 - **Hay que avisar al backend y al frontend antes de cambiar:** el nombre o el tipo de cualquier campo de las tablas de arriba, el formato de `serie`, los valores de `estado`, `periodo`, `mejor`, `frecuencia` y de `estado` de las franjas, y las claves de las métricas (`metric_name`). El frontend tolera un `estado` de correlación que no conoce (lo muestra sin énfasis), pero no sabe interpretarlo.
-- **Reglas de contenido que debe mantener la redacción:** `mensaje` no incluye el aviso de causalidad (viene aparte en `aviso`); los textos hablan de los datos de la persona frente a su propio comportamiento habitual, sin comparar con otras personas.
+- **Reglas de contenido que debe mantener la redacción:** `mensaje` no incluye el aviso de causalidad (viene aparte en `aviso`); los textos hablan de los datos de la persona frente a su propio comportamiento habitual, sin comparar con otras personas; están escritos para quien no sabe estadística: sin r, n, «significativa», «pp» ni «pts» (el coeficiente y `n_muestras` van en sus campos numéricos), con coma decimal y el valor habitual entre paréntesis («(normalmente, 85 %)»).
