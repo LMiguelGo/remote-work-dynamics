@@ -1,0 +1,21 @@
+{
+  "nota": "Salidas de mqtt_rendimiento.js y http_carga.mjs del 2026-11-09 (hora de Colombia; las horas de abajo son UTC). Entorno local: Docker Desktop, 4 vCPU, 3,77 GiB.",
+  "mqtt": [
+    {"escenario": "Base", "tasa_msg_s": 2, "dispositivos_equiv": 10, "seg": 60, "inicio": "2026-11-10T02:58:46Z", "fin": "2026-11-10T02:59:49Z", "enviados": 120, "recibidos": 120, "lat_ms_p50": 4.6, "lat_ms_p95": 11.3, "lat_ms_max": 57.5, "eventos_por_s": 2.0},
+    {"escenario": "Carga media", "tasa_msg_s": 20, "dispositivos_equiv": 100, "seg": 30, "inicio": "2026-11-10T02:59:56Z", "fin": "2026-11-10T03:00:28Z", "enviados": 600, "recibidos": 600, "lat_ms_p50": 4.4, "lat_ms_p95": 12.2, "lat_ms_max": 366.8, "eventos_por_s": 20.1},
+    {"escenario": "Carga alta", "tasa_msg_s": 100, "dispositivos_equiv": 500, "seg": 30, "inicio": "2026-11-10T03:00:29Z", "fin": "2026-11-10T03:01:01Z", "enviados": 3000, "recibidos": 3000, "lat_ms_p50": 4.0, "lat_ms_p95": 17.7, "lat_ms_max": 246.6, "eventos_por_s": 100.0},
+    {"escenario": "Muy alta", "tasa_msg_s": 200, "dispositivos_equiv": 1000, "seg": 30, "inicio": "2026-11-10T03:01:02Z", "fin": "2026-11-10T03:01:34Z", "enviados": 6000, "recibidos": 6000, "lat_ms_p50": 38.3, "lat_ms_p95": 572.5, "lat_ms_max": 810.6, "eventos_por_s": 200.1},
+    {"escenario": "Estrés", "tasa_msg_s": 500, "dispositivos_equiv": 2500, "seg": 30, "inicio": "2026-11-10T03:01:36Z", "fin": "2026-11-10T03:02:37Z", "enviados": 15000, "recibidos": 15000, "lat_ms_p50": 19501.9, "lat_ms_p95": 29742.9, "lat_ms_max": 29899.1, "eventos_por_s": 251.4}
+  ],
+  "api": [
+    {"usuarios": 1, "peticiones": 430, "req_s": 21.5, "p50_ms": 42.9, "p95_ms": 97.8, "max_ms": 172.1, "errores_pct": 0},
+    {"usuarios": 10, "peticiones": 736, "req_s": 36.4, "p50_ms": 240.5, "p95_ms": 537.5, "max_ms": 1227, "errores_pct": 0},
+    {"usuarios": 25, "peticiones": 763, "req_s": 37.1, "p50_ms": 636.7, "p95_ms": 1216.3, "max_ms": 1838.2, "errores_pct": 0},
+    {"usuarios": 50, "peticiones": 756, "req_s": 35.8, "p50_ms": 1399.1, "p95_ms": 1840.6, "max_ms": 2339.5, "errores_pct": 0},
+    {"usuarios": 100, "peticiones": 840, "req_s": 35.9, "p50_ms": 2734.4, "p95_ms": 3882.9, "max_ms": 4744.7, "errores_pct": 0},
+    {"usuarios": 200, "peticiones": 952, "req_s": 38.4, "p50_ms": 4984.1, "p95_ms": 5677.5, "max_ms": 6129.2, "errores_pct": 0}
+  ],
+  "api_por_ruta_1_usuario": {"lider: /api/equipo": [43.2, 82.1], "lider: analitica integrante": [60.6, 143.6], "gerente: /api/organizacion": [55.5, 92.9], "gerente: analitica integrante": [75.0, 128.5], "gerente: operacion dispositivos": [57.4, 154.1], "gerente: operacion conectividad": [12.8, 28.9]},
+  "render_15_rep": {"fcp_ms": [588, 840], "carga_tablero_ms": [735, 1712], "abrir_integrante_ms": [393, 1861], "dibujar_graficas_ms": [138, 1158]},
+  "reconexion": {"broker_arriba_utc_s": 1794280021, "suscriptor_reconecta_utc_s": 1794280023, "dispositivo_reconecta_ms": 1794280024080, "primera_lectura_db_ms": 1794280024866, "lecturas_perdidas": 15}
+}
