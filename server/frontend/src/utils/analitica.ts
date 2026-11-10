@@ -89,11 +89,19 @@ export function textoMejor(mejor: MetricaDetalle['mejor']): string {
 
 // ---- Correlaciones ----
 
+// Etiquetas pensadas para quien no sabe estadística (los estados internos no cambian).
 export const ESTADO_CORRELACION: Record<EstadoCorrelacion, { texto: string; clase: string }> = {
-  diagnostico: { texto: 'Diagnóstico', clase: 'diagnostico' },
-  patron_distinto: { texto: 'Patrón distinto', clase: 'distinto' },
-  no_significativa: { texto: 'No significativa', clase: 'tenue' },
-  datos_insuficientes: { texto: 'Datos insuficientes', clase: 'tenue' },
+  diagnostico: { texto: 'Se repite en su historial', clase: 'diagnostico' },
+  patron_distinto: { texto: 'Al revés de lo esperado', clase: 'distinto' },
+  no_significativa: { texto: 'Sin relación clara', clase: 'tenue' },
+  datos_insuficientes: { texto: 'Faltan datos', clase: 'tenue' },
+};
+
+// Fuerza del coeficiente en palabras; el valor de r queda en el title del pie para quien quiera verificarlo.
+export const FUERZA_CORRELACION: Record<string, string> = {
+  debil: 'Relación leve',
+  moderada: 'Relación clara',
+  fuerte: 'Relación muy marcada',
 };
 
 const PRIORIDAD: Record<EstadoCorrelacion, number> = {
