@@ -30,6 +30,12 @@ function hora(v: Valor): string {
   return typeof v === 'string' ? fmtHora(v) : '—';
 }
 
+// Los avisos de PR integrado o cerrado no siempre traen las líneas; sin ninguno de los dos datos se muestra un guion.
+function lineas(agregadas: Valor, borradas: Valor): string {
+  if (typeof agregadas !== 'number' && typeof borradas !== 'number') return '—';
+  return `+${numero(agregadas)} / −${numero(borradas)}`;
+}
+
 const ACCION_PR: Record<string, string> = {
   opened: 'Abierto',
   reopened: 'Reabierto',
@@ -81,7 +87,7 @@ const TIPOS: { tipo: TipoRegistro; etiqueta: string; columnas: Columna[] }[] = [
     columnas: [
       { titulo: 'PR', valor: (d) => (d.pr_number == null ? '—' : `#${d.pr_number}`) },
       { titulo: 'Acción', valor: (d) => ACCION_PR[String(d.action)] ?? texto(d.action) },
-      { titulo: 'Líneas (+/−)', valor: (d) => `+${numero(d.lines_added)} / −${numero(d.lines_deleted)}` },
+      { titulo: 'Líneas (+/−)', valor: (d) => lineas(d.lines_added, d.lines_deleted) },
       { titulo: 'Archivos', valor: (d) => numero(d.files_changed) },
     ],
   },
