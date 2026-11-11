@@ -415,3 +415,30 @@ export interface AnaliticaPersona {
   dimensiones: DimensionDetalle[]; // siempre las cinco
   correlaciones: CorrelacionesPersona | null; // null si la analítica no respondió
 }
+
+// --- Últimos registros de un integrante (líder y gerente) ---
+// GET /api/equipo/integrantes/:id/registros?tipo= y
+// GET /api/organizacion/integrantes/:id/registros?tipo=
+
+export type TipoRegistro =
+  | 'working_session'
+  | 'daily_survey'
+  | 'weekly_survey'
+  | 'ambiental_reading'
+  | 'pull_request'
+  | 'pull_request_review'
+  | 'commit'
+  | 'issue_created'
+  | 'issue_updated';
+
+export interface RegistroReciente {
+  id: string;
+  time: string | null;
+  datos: Record<string, string | number | boolean | null>;
+}
+
+export interface RespuestaRegistros {
+  tipo: TipoRegistro;
+  limite: number;
+  registros: RegistroReciente[]; // en orden de llegada, los más recientes primero
+}

@@ -17,6 +17,7 @@ import { SemaphoreChip } from '../components/SemaphoreChip';
 import { RadarChart } from '../components/charts/RadarChart';
 import { TablaConectividad } from '../components/TablaConectividad';
 import { DetallePersona } from '../components/analitica/DetallePersona';
+import { UltimosRegistros } from '../components/UltimosRegistros';
 import { iniciales, nombreUsuario } from '../utils/helpers';
 
 // La criticidad la calcula la analítica; aquí solo se traduce a color.
@@ -296,11 +297,19 @@ export const LiderView: React.FC = () => {
           </div>
         </div>
 
-        {/* Card 4: Conectividad del equipo */}
+        {/* Card 4: Últimos registros por persona */}
+        <UltimosRegistros
+          personas={integrantes.map((i) => ({ id: i.usuario.id, nombre: nombreUsuario(i.usuario) }))}
+          rutaBase="/api/equipo/integrantes"
+          id="card-registros"
+          indice={3}
+        />
+
+        {/* Card 5: Conectividad del equipo */}
         <div
           className="card span2"
           id="card-conectividad"
-          style={{ '--i': 3 } as React.CSSProperties}
+          style={{ '--i': 4 } as React.CSSProperties}
         >
           <div className="card-head">
             <div className="icon-chip">
