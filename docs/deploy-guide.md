@@ -28,7 +28,10 @@
 
    ```
 
-3. Construir y ejecutar los contenedores (*Nginx Proxy Manager, Base de Datos, Backend, Analítica, Frontend y Broker MQTT*):
+3. Crear un nuevo archivo en la carpeta **/server** con el nombre **.env** y copiar el contenido del archivo **server/.env.example**
+
+
+4. Construir y ejecutar los contenedores (*Nginx Proxy Manager, Base de Datos, Backend, Analítica, Frontend y Broker MQTT*):
 
    ```bash
 
@@ -36,7 +39,7 @@
 
    ```
 
-4. Verificar que los servicios estén activos (también visible en la interfaz de Docker Desktop):
+5. Verificar que los servicios estén activos (también visible en la interfaz de Docker Desktop):
 
    ```bash
 
@@ -44,7 +47,15 @@
 
    ```
 
-5. Sembrar la base de datos con los roles, las cuentas de las personas y la estructura de equipos. Este paso solo hace falta la primera vez o cuando se quiere reiniciar la base de datos.
+6. Crear un nuevo usuario y contraseña en el broker mqtt para el usuario backend mediante los siguiente comandos:
+
+   ```bash
+
+   docker exec -it mosquitto mosquitto_passwd -cb /mosquitto/config/password_file test-backend test-password-1
+
+   ```
+
+7. Sembrar la base de datos con los roles, las cuentas de las personas y la estructura de equipos. Este paso solo hace falta la primera vez o cuando se quiere reiniciar la base de datos.
 
    ```bash
 
@@ -52,7 +63,7 @@
 
    ```
 
-6. Cargar los datos sintéticos de analítica. Estos datos sirven solo para las pruebas y corresponden a ocho semanas de eventos de dos personas. El comando carga los eventos, vuelve a procesar ese periodo y recalcula las correlaciones, todo en una sola corrida. Antes de ejecutarlo hay que haber corrido el sembrado del paso anterior, porque usa las cuentas que ese paso crea.
+8. Cargar los datos sintéticos de analítica. Estos datos sirven solo para las pruebas y corresponden a ocho semanas de eventos de dos personas. El comando carga los eventos, vuelve a procesar ese periodo y recalcula las correlaciones, todo en una sola corrida. Antes de ejecutarlo hay que haber corrido el sembrado del paso anterior, porque usa las cuentas que ese paso crea.
 
    ```bash
 
@@ -60,7 +71,7 @@
 
    ```
 
-7. Consultar las credenciales generadas para la prueba (*se escriben en un archivo interno dentro del contenedor*):
+9. Consultar las credenciales generadas para la prueba (*se escriben en un archivo interno dentro del contenedor*):
 
    ```bash
 
@@ -68,7 +79,7 @@
 
    ```
 
-8. Configurar el enrutamiento en la consola web de **Nginx Proxy Manager**:
+10. Configurar el enrutamiento en la consola web de **Nginx Proxy Manager** *(este paso puede ser omitido a menos de que sea la primera vez que se hace el despliegue o si se han eliminado los volúmenes de Nginx)*:
 
    - Acceder a http://localhost:81
 
@@ -96,9 +107,7 @@
 
 
 
-9. Acceder al dashboard de la aplicación en el navegador: http://localhost
-
-10. Acceder a la documentación de la API de analítica (*disponible solo en despliegue local*): http://localhost:8000/docs
+10. Acceder al dashboard de la aplicación en el navegador: http://localhost
 
 
 

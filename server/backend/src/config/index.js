@@ -21,7 +21,7 @@ const config = {
   MQTT_PASSWORD: process.env.MQTT_PASSWORD,
   // Topico donde el firmware ESP32 publica sus lecturas ambientales. Reutiliza el
   // del prototipo anterior (src/mqtt.js) y queda configurable por entorno.
-  MQTT_TOPIC: process.env.MQTT_TOPIC || 'remote-work/esp32/ambiente',
+  MQTT_TOPIC: process.env.MQTT_TOPIC,
   // Token compartido para la ingesta HTTP de sensores y conectores. Defecto solo
   // de desarrollo. Lo comparten el firmware ESP32 y el conector de Jira, asi que
   // debe ser estable (no se regenera en cada despliegue) y viajar fuera del repo.
@@ -59,8 +59,8 @@ if (config.NODE_ENV === 'production') {
   if (faltantes.length > 0) {
     throw new Error(
       `No se puede arrancar en produccion con secretos por defecto. ` +
-        `Defina por entorno: ${faltantes.join(', ')}. ` +
-        `Genere cada uno con una cadena larga y aleatoria, por ejemplo "openssl rand -hex 32".`
+      `Defina por entorno: ${faltantes.join(', ')}. ` +
+      `Genere cada uno con una cadena larga y aleatoria, por ejemplo "openssl rand -hex 32".`
     );
   }
 }
