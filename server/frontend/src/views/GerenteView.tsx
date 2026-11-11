@@ -10,6 +10,7 @@ import {
 import { PageHead } from '../components/PageHead';
 import { DetallePersona } from '../components/analitica/DetallePersona';
 import { SemaphoreChip } from '../components/SemaphoreChip';
+import { UltimosRegistros, type PersonaRegistros } from '../components/UltimosRegistros';
 import { iniciales, nombreUsuario } from '../utils/helpers';
 import { contarCriticos, dimensionDe, fmtPuntaje, nivelCriticidad } from '../utils/space';
 
@@ -68,6 +69,14 @@ export const GerenteView: React.FC = () => {
     eq.integrantes.reduce((acc, i) => acc + contarCriticos(i), 0);
   const totalCriticos = equipos.reduce((acc, eq) => acc + criticosDe(eq), 0);
   const detalle = seleccionado != null ? equipos[seleccionado] : null;
+  // Personas para la tarjeta de últimos registros, agrupadas por el equipo de cada líder.
+  const personasRegistros: PersonaRegistros[] = equipos.flatMap((eq) =>
+    eq.integrantes.map((i) => ({
+      id: i.usuario.id,
+      nombre: nombreUsuario(i.usuario),
+      grupo: `Equipo de ${nombreLider(eq)}`,
+    })),
+  );
 
   const alternar = (id: number) => setAbiertas((prev) => ({ ...prev, [id]: !prev[id] }));
 
@@ -143,13 +152,21 @@ export const GerenteView: React.FC = () => {
                           {ORDEN_DIMENSIONES.map((k) => {
                             const a = agregado.find((x) => x.dimension === k);
                             return (
-                              <i
+                              <div
                                 key={k}
+                                className="dimcol"
                                 title={`${DIMN[k]}: ${fmtPuntaje(a?.normalized_score)}`}
-                                style={
-                                  { '--w': `${(a?.normalized_score ?? 0) * 10}%` } as React.CSSProperties
-                                }
-                              />
+                              >
+                                <i
+                                  style={
+                                    { '--w': `${(a?.normalized_score ?? 0) * 10}%` } as React.CSSProperties
+                                  }
+                                />
+                                <span className="dimlbl">
+                                  <b>{k}</b>
+                                  {fmtPuntaje(a?.normalized_score)}
+                                </span>
+                              </div>
                             );
                           })}
                         </div>
@@ -171,6 +188,13 @@ export const GerenteView: React.FC = () => {
             </div>
           )}
         </div>
+
+        {/* Card 3: Últimos registros por persona */}
+        <UltimosRegistros
+          personas={personasRegistros}
+          rutaBase="/api/organizacion/integrantes"
+          indice={2}
+        />
       </div>
 
       {/* Detalle del equipo seleccionado */}

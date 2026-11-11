@@ -748,13 +748,47 @@ body {
   margin-top: 10px;
 }
 
+/* En pantallas angostas la información del equipo ocupa toda la fila para que las letras y puntajes SPACE se lean. */
+@media (max-width: 560px) {
+  .team {
+    flex-wrap: wrap;
+  }
+
+  .team .info {
+    flex-basis: 100%;
+  }
+}
+
+.team .dimsmall .dimcol {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
 .team .dimsmall i {
+  display: block;
   height: 6px;
   border-radius: 4px;
   background: #dbe3f1;
-  flex: 1;
   overflow: hidden;
   position: relative;
+}
+
+.team .dimsmall .dimlbl {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 3px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--ink2);
+}
+
+.team .dimsmall .dimlbl b {
+  font-size: inherit;
+  color: var(--ink);
 }
 
 .team .dimsmall i::after {
@@ -763,6 +797,25 @@ body {
   inset: 0 auto 0 0;
   width: var(--w, 0%);
   background: var(--blue);
+}
+
+/* ---------- Últimos registros ---------- */
+.registros-sel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.registros-sel .an-sel {
+  flex-wrap: wrap;
+}
+
+.registros-sel .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 /* ---------- Login ---------- */
