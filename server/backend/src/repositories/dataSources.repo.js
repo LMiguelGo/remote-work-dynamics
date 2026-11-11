@@ -16,6 +16,8 @@ async function obtenerPorUsuarioYTipo(pool, userId, sourceType) {
 // (username/full_name) y la ultima actividad (MAX(events.time)) de esa fuente.
 // LEFT JOIN a events para que una fuente sin eventos salga con ultima_actividad
 // en null. SQL parametrizado (aqui sin parametros, solo lectura agregada).
+// Orden: la fuente con la actividad mas reciente primero; las que nunca han
+// enviado datos van al final.
 async function estadoDeFuentes(pool) {
   const r = await pool.query(
     `SELECT ds.id,
@@ -29,7 +31,7 @@ async function estadoDeFuentes(pool) {
        JOIN users u ON u.id = ds.user_id
        LEFT JOIN events e ON e.source_id = ds.id
       GROUP BY ds.id, ds.source_type, ds.identifier, ds.is_active, u.username, u.full_name
-      ORDER BY ds.id`
+      ORDER BY ultima_actividad DESC NULLS LAST, ds.id`
   );
   return r.rows;
 }

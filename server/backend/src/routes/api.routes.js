@@ -215,6 +215,16 @@ router.get('/equipo/integrantes/:id/analitica', soloLider, async (req, res, next
   }
 });
 
+// Ultimos registros de un tipo de dato de un integrante del equipo (?tipo=commit).
+// Sirve para comprobar que cada fuente esta guardando datos.
+router.get('/equipo/integrantes/:id/registros', soloLider, async (req, res, next) => {
+  try {
+    await liderController.registrosIntegrante(req, res);
+  } catch (err) {
+    next(err);
+  }
+});
+
 // --- Rutas del gerente ---
 
 router.get('/organizacion', soloGerente, async (req, res, next) => {
@@ -241,6 +251,15 @@ router.get(
 router.get('/organizacion/integrantes/:id/analitica', soloGerente, async (req, res, next) => {
   try {
     await gerenteController.analiticaIntegrante(req, res);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Ultimos registros de un tipo de dato de un integrante de su organizacion (?tipo=commit).
+router.get('/organizacion/integrantes/:id/registros', soloGerente, async (req, res, next) => {
+  try {
+    await gerenteController.registrosIntegrante(req, res);
   } catch (err) {
     next(err);
   }

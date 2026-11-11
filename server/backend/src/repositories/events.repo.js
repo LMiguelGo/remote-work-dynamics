@@ -158,6 +158,24 @@ async function ultimaRedPorFuenteDeUsuarios(pool, userIds) {
   return r.rows;
 }
 
+// Ultimos eventos de un tipo para un usuario, en orden de llegada (mas recientes
+// primero). El orden va por id y no por time: el id es consecutivo y refleja
+// cuando se guardo el evento, mientras que time puede ser la hora en que ocurrio
+// en la fuente (un commit de ayer que se sube hoy trae la hora de ayer).
+async function recientesDeUsuario(pool, userId, eventType, limit) {
+  const r = await pool.query(
+    `SELECT e.id, e.time, e.payload
+       FROM events e
+       JOIN data_sources ds ON ds.id = e.source_id
+      WHERE ds.user_id = $1
+        AND e.event_type = $2
+      ORDER BY e.id DESC
+      LIMIT $3`,
+    [userId, eventType, limit]
+  );
+  return r.rows;
+}
+
 module.exports = {
   insertar,
   ultimasAmbiente,
@@ -167,4 +185,5 @@ module.exports = {
   cerrarWorkingSession,
   ultimaRedPorFuente,
   ultimaRedPorFuenteDeUsuarios,
+  recientesDeUsuario,
 };
