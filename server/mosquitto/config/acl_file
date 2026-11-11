@@ -1,0 +1,5 @@
+user test-backend
+topic read test-topic/#
+
+user test-esp32-1
+topic write test-topic/esp32-1

@@ -5,6 +5,7 @@ services:
     restart: unless-stopped
     ports:
       - "80:80"
+      - "81:81" # Delete in production
       - "443:443"
       - "8883:8883"
     volumes:
@@ -71,6 +72,7 @@ services:
       - MQTT_URL=${MQTT_URL}
       - MQTT_USERNAME=${MQTT_USERNAME}
       - MQTT_PASSWORD=${MQTT_PASSWORD}
+      - MQTT_TOPIC=${MQTT_TOPIC}
     restart: unless-stopped
     depends_on:
       - database
