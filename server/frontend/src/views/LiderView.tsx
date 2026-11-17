@@ -242,6 +242,14 @@ export const LiderView: React.FC = () => {
                         <tr
                           className={`filarow ${abierta ? 'open' : ''}`}
                           onClick={() => alternar(id)}
+                          tabIndex={0}
+                          aria-expanded={abierta}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              alternar(id);
+                            }
+                          }}
                         >
                           <td>
                             <div className="idcell">
