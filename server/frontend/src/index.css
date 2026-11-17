@@ -1679,3 +1679,26 @@ table.tabla {
   color: var(--ink2);
 }
 
+/* ---------- Últimos registros: sensor sin datos y registros nuevos ---------- */
+.tabla th.th-sin-datos {
+  color: var(--red);
+  cursor: help;
+}
+.tabla th.th-sin-datos span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.tabla tr.registro-nuevo td {
+  background: var(--green-soft);
+}
+.chip-nuevo {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--green);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 700;
+}

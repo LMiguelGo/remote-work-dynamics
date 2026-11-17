@@ -61,6 +61,16 @@ test('construirRegistros tolera filas vacias y payload ausente', () => {
   assert.deepEqual(r.registros[0], { id: '1', time: null, datos: { start_time: null, end_time: null } });
 });
 
+// Caso real (2026-11-16): si el ESP32 dejaba de enviar, la tarjeta solo mostraba la
+// ultima lectura. Para avisarlo, el tablero mide el tiempo sin datos con la hora del
+// servidor que va en generado_en, no con el reloj del computador de quien mira.
+test('construirRegistros incluye la hora del servidor en generado_en', () => {
+  const ahora = new Date('2026-11-16T15:00:00Z');
+  const r = construirRegistros([], 'ambiental_reading', ahora);
+  assert.equal(r.generado_en, '2026-11-16T15:00:00.000Z');
+  assert.match(construirRegistros([], 'commit').generado_en, /^\d{4}-\d{2}-\d{2}T/);
+});
+
 // --- Repositorios (pool falso) ---
 
 test('recientesDeUsuario ordena por id (orden de llegada) y filtra por persona y tipo', async () => {

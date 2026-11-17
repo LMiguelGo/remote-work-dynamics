@@ -1,8 +1,60 @@
-import React, { useEffect, useState } from 'react';
-import { Database, RefreshCw } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { AlertTriangle, Database, RefreshCw } from 'lucide-react';
 import { api } from '../services/api';
 import type { RegistroReciente, RespuestaRegistros, TipoRegistro } from '../types';
 import { fmtHora } from '../utils/helpers';
+import {
+  INTERVALO_ESP32_S,
+  MUESTRAS_SIN_DATO,
+  NOMBRE_VARIABLE,
+  TIPOS_CON_NUEVOS,
+  duracion,
+  esNuevo,
+  masReciente,
+  variablesSinDatos,
+  type FallaVariable,
+  type VariableAmbiental,
+} from '../utils/registros';
+
+// La tarjeta se vuelve a consultar sola para que aparezcan los avisos y los registros nuevos. Las lecturas ambientales
+// llegan cada 5 s (lo que tarda el ESP32 entre envíos), así que se consultan al mismo ritmo; el resto cada 30 s.
+const REFRESCO_AMBIENTAL_MS = INTERVALO_ESP32_S * 1000;
+const REFRESCO_MS = 30000;
+
+// Hasta dónde vio esta persona cada lista (persona y tipo), guardado en el navegador. Si el navegador no deja guardar,
+// la tarjeta funciona igual, solo que no recuerda la visita anterior.
+function claveVisto(rutaBase: string, persona: number, tipo: TipoRegistro): string {
+  return `ultimos-registros:visto:${rutaBase}:${persona}:${tipo}`;
+}
+
+function leerVisto(clave: string): string | null {
+  try {
+    return window.localStorage.getItem(clave);
+  } catch {
+    return null;
+  }
+}
+
+function guardarVisto(clave: string, valor: string | null): void {
+  if (!valor) return;
+  try {
+    window.localStorage.setItem(clave, valor);
+  } catch {
+    // Sin almacenamiento: no se recuerda la visita.
+  }
+}
+
+function avisoSinDatos(campo: VariableAmbiental, f: FallaVariable): string {
+  const nombre = NOMBRE_VARIABLE[campo];
+  const desde =
+    f.segundos == null
+      ? 'No hay ningún dato reciente.'
+      : `Último dato hace ${duracion(f.segundos)} (${fmtHora(f.ultimo)}).`;
+  return (
+    `El sensor dejó de enviar datos de ${nombre}. ${desde} ` +
+    `Se avisa cuando faltan ${MUESTRAS_SIN_DATO} muestras seguidas; el ESP32 envía una cada ${INTERVALO_ESP32_S} s.`
+  );
+}
 
 // Persona que se puede elegir en el selector. `grupo` agrupa las opciones (equipo del líder, en la vista del gerente).
 export interface PersonaRegistros {
@@ -16,6 +68,7 @@ type Valor = string | number | boolean | null | undefined;
 interface Columna {
   titulo: string;
   valor: (d: RegistroReciente['datos']) => string;
+  campo?: VariableAmbiental; // variable del sensor que muestra la columna
 }
 
 function texto(v: Valor): string {
@@ -76,9 +129,9 @@ const TIPOS: { tipo: TipoRegistro; etiqueta: string; columnas: Columna[] }[] = [
     tipo: 'ambiental_reading',
     etiqueta: 'Lecturas ambientales',
     columnas: [
-      { titulo: 'Temperatura (°C)', valor: (d) => numero(d.temperature, 1) },
-      { titulo: 'Humedad (%)', valor: (d) => numero(d.humidity, 1) },
-      { titulo: 'Ruido (dB)', valor: (d) => numero(d.noise_level, 1) },
+      { titulo: 'Temperatura (°C)', valor: (d) => numero(d.temperature, 1), campo: 'temperature' },
+      { titulo: 'Humedad (%)', valor: (d) => numero(d.humidity, 1), campo: 'humidity' },
+      { titulo: 'Ruido (dB)', valor: (d) => numero(d.noise_level, 1), campo: 'noise_level' },
     ],
   },
   {
@@ -133,6 +186,7 @@ interface Resultado {
   clave: string;
   respuesta: RespuestaRegistros | null;
   error: string | null;
+  vistoHasta: string | null; // registros posteriores a esta hora se marcan como nuevos
 }
 
 interface Props {
@@ -143,13 +197,26 @@ interface Props {
 }
 
 // Tarjeta de últimos registros: la persona y el tipo de dato se eligen con dos selectores y cada cambio vuelve a
-// consultar la base. No escucha eventos en vivo. Sirve para comprobar que cada fuente está guardando datos.
+// consultar la base; además se vuelve a consultar sola cada 30 s. Sirve para comprobar que cada fuente está guardando
+// datos: en las lecturas ambientales marca en rojo la variable que el sensor dejó de enviar, y en GitHub y Jira marca
+// en verde lo que llegó desde la última vez que se miró.
 export const UltimosRegistros: React.FC<Props> = ({ personas, rutaBase, id, indice = 0 }) => {
   const [personaElegida, setPersonaElegida] = useState<number | null>(null);
   const [tipo, setTipo] = useState<TipoRegistro>('working_session');
   // Sube con el botón Actualizar para repetir la misma consulta.
   const [version, setVersion] = useState(0);
+  // Sube cada 5 s (lecturas ambientales) o 30 s (el resto): repite la consulta sin mostrar «Consultando...».
+  const [tick, setTick] = useState(0);
   const [resultado, setResultado] = useState<Resultado | null>(null);
+  // Referencia de «nuevo» por persona y tipo, fija mientras la tarjeta está abierta: así un registro que llega con la
+  // página abierta también queda en verde.
+  const vistoRef = useRef<Record<string, string | null>>({});
+
+  const refrescoMs = tipo === 'ambiental_reading' ? REFRESCO_AMBIENTAL_MS : REFRESCO_MS;
+  useEffect(() => {
+    const t = window.setInterval(() => setTick((n) => n + 1), refrescoMs);
+    return () => window.clearInterval(t);
+  }, [refrescoMs]);
 
   // Si la persona elegida ya no está en la lista (o aún no se eligió), se toma la primera.
   const personaId = personas.some((p) => p.id === personaElegida)
@@ -157,29 +224,39 @@ export const UltimosRegistros: React.FC<Props> = ({ personas, rutaBase, id, indi
     : (personas[0]?.id ?? null);
   const clave = `${personaId}|${tipo}|${version}`;
 
-  // Cada cambio de persona, tipo o el botón Actualizar consulta la base. Si llega una respuesta de una consulta
-  // anterior, se descarta.
+  // Cada cambio de persona, tipo, el botón Actualizar o el refresco de 30 s consulta la base. Si llega una respuesta de
+  // una consulta anterior, se descarta.
   useEffect(() => {
     if (personaId == null) return;
     let vigente = true;
     api<RespuestaRegistros>(`${rutaBase}/${personaId}/registros?tipo=${encodeURIComponent(tipo)}`)
       .then((respuesta) => {
-        if (vigente) setResultado({ clave, respuesta, error: null });
+        if (!vigente) return;
+        let vistoHasta: string | null = null;
+        if (TIPOS_CON_NUEVOS.has(tipo)) {
+          const k = claveVisto(rutaBase, personaId, tipo);
+          // La primera consulta de esta lista toma como referencia la visita anterior; si no la hay, nada es nuevo.
+          if (!(k in vistoRef.current)) vistoRef.current[k] = leerVisto(k) ?? masReciente(respuesta.registros);
+          vistoHasta = vistoRef.current[k];
+          guardarVisto(k, masReciente(respuesta.registros));
+        }
+        setResultado({ clave, respuesta, error: null, vistoHasta });
       })
       .catch((err: unknown) => {
         // 401 y debe_cambiar_clave ya los resuelve AuthContext.
-        if (vigente) {
-          setResultado({
-            clave,
-            respuesta: null,
-            error: err instanceof Error ? err.message : 'No se pudieron cargar los registros',
-          });
-        }
+        if (!vigente) return;
+        const mensaje = err instanceof Error ? err.message : 'No se pudieron cargar los registros';
+        // Si falla un refresco automático, se deja lo que ya se veía.
+        setResultado((prev) =>
+          prev && prev.clave === clave && prev.respuesta
+            ? prev
+            : { clave, respuesta: null, error: mensaje, vistoHasta: null },
+        );
       });
     return () => {
       vigente = false;
     };
-  }, [clave, personaId, tipo, rutaBase]);
+  }, [clave, personaId, tipo, rutaBase, tick]);
 
   const cargando = personaId != null && resultado?.clave !== clave;
   const respuesta = cargando ? null : (resultado?.respuesta ?? null);
@@ -187,6 +264,12 @@ export const UltimosRegistros: React.FC<Props> = ({ personas, rutaBase, id, indi
   const def = TIPOS.find((t) => t.tipo === tipo) ?? TIPOS[0];
   const grupos = Array.from(new Set(personas.map((p) => p.grupo ?? '')));
   const registros = respuesta?.tipo === tipo ? respuesta.registros : [];
+  // Variables que el sensor dejó de enviar (solo en lecturas ambientales).
+  const fallas =
+    tipo === 'ambiental_reading' && respuesta?.tipo === tipo
+      ? variablesSinDatos(registros, respuesta.generado_en ?? new Date().toISOString())
+      : {};
+  const vistoHasta = resultado?.clave === clave && TIPOS_CON_NUEVOS.has(tipo) ? resultado.vistoHasta : null;
 
   return (
     <div className="card span2" id={id} style={{ '--i': indice } as React.CSSProperties}>
@@ -269,20 +352,35 @@ export const UltimosRegistros: React.FC<Props> = ({ personas, rutaBase, id, indi
                 <thead>
                   <tr>
                     <th>Fecha y hora</th>
-                    {def.columnas.map((c) => (
-                      <th key={c.titulo}>{c.titulo}</th>
-                    ))}
+                    {def.columnas.map((c) => {
+                      const falla = c.campo ? fallas[c.campo] : undefined;
+                      if (!c.campo || !falla) return <th key={c.titulo}>{c.titulo}</th>;
+                      const aviso = avisoSinDatos(c.campo, falla);
+                      return (
+                        <th key={c.titulo} className="th-sin-datos" title={aviso}>
+                          <span tabIndex={0} aria-label={aviso}>
+                            <AlertTriangle size={14} aria-hidden="true" /> {c.titulo}
+                          </span>
+                        </th>
+                      );
+                    })}
                   </tr>
                 </thead>
                 <tbody>
-                  {registros.map((r) => (
-                    <tr key={r.id}>
-                      <td>{fmtHora(r.time)}</td>
-                      {def.columnas.map((c) => (
-                        <td key={c.titulo}>{c.valor(r.datos)}</td>
-                      ))}
-                    </tr>
-                  ))}
+                  {registros.map((r) => {
+                    const nuevo = esNuevo(r, vistoHasta);
+                    return (
+                      <tr key={r.id} className={nuevo ? 'registro-nuevo' : undefined}>
+                        <td>
+                          {fmtHora(r.time)}
+                          {nuevo && <span className="chip-nuevo">Nuevo</span>}
+                        </td>
+                        {def.columnas.map((c) => (
+                          <td key={c.titulo}>{c.valor(r.datos)}</td>
+                        ))}
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -290,7 +388,12 @@ export const UltimosRegistros: React.FC<Props> = ({ personas, rutaBase, id, indi
         </>
       )}
       <div className="card-foot">
-        Se consulta cada vez que cambias la persona o el tipo de dato. Las gráficas se siguen calculando una vez al día.
+        Se consulta al cambiar la persona o el tipo de dato, y sola cada{' '}
+        {tipo === 'ambiental_reading' ? `${INTERVALO_ESP32_S} s` : '30 s'}.{' '}
+        {tipo === 'ambiental_reading' &&
+          `Una variable en rojo lleva ${MUESTRAS_SIN_DATO} muestras seguidas sin llegar; pasa el cursor para ver desde cuándo. `}
+        {TIPOS_CON_NUEVOS.has(tipo) && 'En verde, lo que llegó desde la última vez que miraste. '}
+        Las gráficas se siguen calculando una vez al día.
       </div>
     </div>
   );

@@ -440,5 +440,6 @@ export interface RegistroReciente {
 export interface RespuestaRegistros {
   tipo: TipoRegistro;
   limite: number;
+  generado_en?: string; // hora del servidor al responder
   registros: RegistroReciente[]; // en orden de llegada, los más recientes primero
 }
