@@ -75,6 +75,17 @@ export const DetallePersona: React.FC<Props> = ({ rutaBase, personaId }) => {
     error: string | null;
   } | null>(null);
 
+  // Si el administrador configuró un recálculo de menos de 24 h, el detalle se vuelve a pedir solo a ese ritmo (cada mitad
+  // del intervalo, entre 30 s y 5 min), sin pasar a "cargando" ni cerrar la dimensión abierta. Con 24 h no se refresca.
+  const [tick, setTick] = useState(0);
+  const recalculoMin = resultado?.data?.recalculo_minutos ?? 1440;
+  useEffect(() => {
+    if (recalculoMin >= 1440) return;
+    const ms = Math.min(5 * 60000, Math.max(30000, (recalculoMin * 60000) / 2));
+    const t = window.setInterval(() => setTick((n) => n + 1), ms);
+    return () => window.clearInterval(t);
+  }, [recalculoMin]);
+
   useEffect(() => {
     let vigente = true; // descarta la respuesta de una persona que ya no está a la vista
     api<AnaliticaPersona>(`${rutaBase}/${personaId}/analitica`)
@@ -83,19 +94,19 @@ export const DetallePersona: React.FC<Props> = ({ rutaBase, personaId }) => {
       })
       .catch((err: unknown) => {
         // 401 y debe_cambiar_clave ya los resuelve AuthContext.
-        if (vigente) {
-          setResultado({
-            personaId,
-            intento,
-            data: null,
-            error: err instanceof Error ? err.message : 'No se pudo cargar el detalle',
-          });
-        }
+        if (!vigente) return;
+        const error = err instanceof Error ? err.message : 'No se pudo cargar el detalle';
+        // Si falla un refresco automático, se deja lo que ya se veía.
+        setResultado((prev) =>
+          prev && prev.personaId === personaId && prev.intento === intento && prev.data
+            ? prev
+            : { personaId, intento, data: null, error },
+        );
       });
     return () => {
       vigente = false;
     };
-  }, [rutaBase, personaId, intento]);
+  }, [rutaBase, personaId, intento, tick]);
 
   const listo = resultado != null && resultado.personaId === personaId && resultado.intento === intento;
   const data = listo ? resultado.data : null;
@@ -187,7 +198,7 @@ export const DetallePersona: React.FC<Props> = ({ rutaBase, personaId }) => {
             )}
           </>
         ) : tieneDiarias ? (
-          <span className="an-dim-delta an-dim-viejo">Sin datos en los últimos {dias} días</span>
+          <span className="an-dim-delta an-dim-viejo">Sin datos en el último año</span>
         ) : (
           <span className="an-dim-delta">Se miden por semana: están en la pestaña Semana.</span>
         )}

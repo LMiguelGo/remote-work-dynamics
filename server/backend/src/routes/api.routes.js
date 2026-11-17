@@ -6,6 +6,7 @@ const empleadoController = require('../controllers/empleado.controller');
 const liderController = require('../controllers/lider.controller');
 const gerenteController = require('../controllers/gerente.controller');
 const operacionController = require('../controllers/operacion.controller');
+const analiticaController = require('../controllers/analitica.controller');
 const { exigeSesion, exigeRol, exigeClaveActualizada } = require('../middlewares/auth.middleware');
 const { exigeJson, validarCon } = require('../middlewares/validacion.middleware');
 const { crearLimitador } = require('../middlewares/rateLimit.middleware');
@@ -100,6 +101,23 @@ router.get('/usuarios', soloAdmin, async (req, res, next) => {
 router.post('/usuarios/:id/restablecer-clave', soloAdmin, async (req, res, next) => {
   try {
     await authController.restablecerClave(req, res);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Cada cuanto recalcula la analitica las metricas, sus graficas y las relaciones: de 1 minuto a 24 horas (por defecto 24 h).
+router.get('/admin/analitica/recalculo', soloAdmin, async (req, res, next) => {
+  try {
+    await analiticaController.verRecalculo(req, res);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.put('/admin/analitica/recalculo', [...soloAdmin, exigeJson], async (req, res, next) => {
+  try {
+    await analiticaController.cambiarRecalculo(req, res);
   } catch (err) {
     next(err);
   }

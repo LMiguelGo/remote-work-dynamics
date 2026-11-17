@@ -1519,6 +1519,13 @@ table.tabla {
   fill: var(--muted);
 }
 
+/* Periodo sin muestras comprimido dentro de una gráfica */
+.an-hueco-txt {
+  font-size: 9px;
+  fill: var(--ink2);
+  font-weight: 600;
+}
+
 .an-tip {
   position: absolute;
   top: 6px;

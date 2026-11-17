@@ -29,9 +29,12 @@ async function detalleDePersona(req, res, personaId) {
     ventana.semanas
   );
   const correlaciones = await analitica.correlaciones(personaId);
+  // Cada cuanto recalcula la analitica: con menos de 24 h el panel se vuelve a consultar solo a ese ritmo. Si analitica no
+  // lo dice, se asume el cierre diario y el panel no se refresca solo.
+  const recalculo = await analitica.verRecalculo().catch(() => null);
 
-  return res.json(
-    construirAnalitica({
+  return res.json({
+    ...construirAnalitica({
       usuario: persona,
       catalogo,
       dimensiones,
@@ -39,8 +42,34 @@ async function detalleDePersona(req, res, personaId) {
       correlaciones,
       dias: ventana.dias,
       semanas: ventana.semanas,
-    })
-  );
+    }),
+    recalculo_minutos: recalculo ? recalculo.intervalo_minutos : 1440,
+  });
 }
 
-module.exports = { detalleDePersona };
+// GET /admin/analitica/recalculo -> configuracion vigente del recalculo (solo administrador).
+async function verRecalculo(req, res) {
+  try {
+    return res.json(await analitica.verRecalculo());
+  } catch (err) {
+    console.error('No se pudo leer la configuracion de recalculo:', err.message);
+    return res.status(503).json({ error: 'La analitica no esta disponible en este momento' });
+  }
+}
+
+// PUT /admin/analitica/recalculo { intervalo_minutos } -> entero de 1 a 1440 (solo administrador).
+async function cambiarRecalculo(req, res) {
+  const minutos = req.body ? req.body.intervalo_minutos : undefined;
+  if (!Number.isInteger(minutos) || minutos < 1 || minutos > 1440) {
+    return res.status(400).json({ error: 'intervalo_minutos debe ser un entero entre 1 y 1440 (24 horas)' });
+  }
+  try {
+    return res.json(await analitica.cambiarRecalculo(minutos));
+  } catch (err) {
+    console.error('No se pudo cambiar la configuracion de recalculo:', err.message);
+    if (err.status === 400) return res.status(400).json({ error: err.detalle || 'Valor no valido' });
+    return res.status(503).json({ error: 'La analitica no esta disponible en este momento' });
+  }
+}
+
+module.exports = { detalleDePersona, verRecalculo, cambiarRecalculo };

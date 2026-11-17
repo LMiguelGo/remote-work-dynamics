@@ -1,14 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import type { FranjaMetrica, MetricaDetalle, PuntoMetrica } from '../../types';
-import {
-  COLOR_ESTADO,
-  ESTADO_TEXTO,
-  fechaCorta,
-  formatearValor,
-  msDe,
-  rangoFechas,
-  sumarDias,
-} from '../../utils/analitica';
+import { COLOR_ESTADO, ESTADO_TEXTO, fechaCorta, formatearValor, msDe, rangoFechas } from '../../utils/analitica';
+import { UNIDAD_DIA_MS, UNIDAD_SEMANA_MS, ejeComprimido } from '../../utils/ejeComprimido';
 
 // Geometría del dibujo (unidades del viewBox): el valor real con franjas de umbral y, debajo, las fechas.
 const VW = 520;
@@ -18,12 +11,16 @@ const PR = 10;
 const MT = 12;
 const MH = 140;
 const DIA_MS = 86400000;
+// Un periodo sin muestras se comprime desde 5 días entre muestras (un fin de semana largo no cuenta) o 3 semanas.
+const HUECO_MIN_DIAS = 5;
+const HUECO_MIN_SEMANAS = 3;
+const ANCHO_HUECO = 30; // ancho de la franja comprimida, de 464 que mide el área de dibujo
 
 interface Props {
   metrica: MetricaDetalle;
-  referencia: string; // último día con datos: es donde termina el eje
-  dias: number;
-  semanas: number;
+  referencia: string; // último día calculado: es donde termina el eje
+  dias?: number;
+  semanas?: number;
 }
 
 // Franjas dentro de la escala dibujada. La primera y la última se extienden hasta los bordes si la escala se amplió.
@@ -61,20 +58,30 @@ function etiquetaMarca(m: MetricaDetalle, v: number): string {
   return m.mejor === 'letra' ? ('EDCBA'[v - 1] ?? '') : String(+v.toFixed(2));
 }
 
-export const GraficaMetrica: React.FC<Props> = ({ metrica, referencia, dias, semanas }) => {
+export const GraficaMetrica: React.FC<Props> = ({ metrica, referencia }) => {
   const [activo, setActivo] = useState<number | null>(null);
   const semanal = metrica.frecuencia === 'semanal';
   const historial = metrica.historial;
 
   const g = useMemo(() => {
-    const inicio = semanal ? sumarDias(referencia, -(7 * semanas - 1)) : sumarDias(referencia, -(dias - 1));
-    const finSemana = historial.length ? historial[historial.length - 1].end_date : referencia;
-    const fin = semanal && finSemana > referencia ? finSemana : referencia;
-    const t0 = msDe(inicio) - DIA_MS / 2;
-    const t1 = msDe(fin) + DIA_MS / 2;
     const W = VW - PL - PR;
     const centro = (p: PuntoMetrica) => (semanal ? msDe(p.start_date) + 3 * DIA_MS : msDe(p.start_date));
-    const X = (t: number) => PL + ((t - t0) / (t1 - t0)) * W;
+    // El eje va de la primera muestra al día de referencia (o a la última semana). Los periodos largos sin muestras se
+    // comprimen en una franja angosta: la gráfica se reparte entre los días que sí tienen datos.
+    const conValor = historial.filter((p) => p.raw_value != null);
+    const centros = conValor.map(centro);
+    const finMs = semanal
+      ? Math.max(msDe(referencia) - 3 * DIA_MS, centros.length ? centros[centros.length - 1] : -Infinity)
+      : msDe(referencia);
+    const eje = ejeComprimido(centros, finMs, {
+      x0: PL,
+      ancho: W,
+      unidadMs: semanal ? UNIDAD_SEMANA_MS : UNIDAD_DIA_MS,
+      huecoMinUnidades: semanal ? HUECO_MIN_SEMANAS : HUECO_MIN_DIAS,
+      anchoHueco: ANCHO_HUECO,
+      maxFraccionHuecos: 0.3,
+    });
+    const X = eje.X;
 
     const valores = historial.map((p) => p.raw_value).filter((v): v is number => v != null);
     let ymin = metrica.escala?.min ?? 0;
@@ -87,15 +94,49 @@ export const GraficaMetrica: React.FC<Props> = ({ metrica, referencia, dias, sem
     }
     const Y = (v: number) => MT + MH * (1 - (v - ymin) / (ymax - ymin));
     const franjas = metrica.franjas ? franjasEnEscala(metrica.franjas, ymin, ymax) : null;
-    const dibujable = historial.filter((p) => p.raw_value != null);
-    const puntosXY = dibujable.map((p) => ({ p, x: X(centro(p)), y: Y(p.raw_value as number) }));
-    const ancho = (W / ((t1 - t0) / DIA_MS)) * 5; // ancho de una barra semanal
-    const ticks: Array<{ x: number; texto: string }> = [];
-    for (let t = msDe(inicio); t <= t1; t += 14 * DIA_MS) {
-      ticks.push({ x: X(t), texto: fechaCorta(new Date(t).toISOString()) });
+    const puntosXY = conValor.map((p) => ({ p, x: X(centro(p)), y: Y(p.raw_value as number) }));
+    const ancho = eje.anchoUnidad * (semanal ? 5 / 7 : 0.7); // ancho de una barra semanal
+    // Fechas del eje: solo en los tramos con datos, una cada semana (diaria) o cada 2 semanas (semanal), sin que se pisen.
+    const huecos = eje.tramos.filter((tr) => tr.hueco);
+    const candidatas: Array<{ x: number; texto: string }> = [];
+    const paso = (semanal ? 14 : 7) * DIA_MS;
+    for (const tr of eje.tramos.filter((r) => !r.hueco)) {
+      const primero = Math.ceil((tr.t0 - DIA_MS / 2) / DIA_MS) * DIA_MS + DIA_MS / 2;
+      for (let t = primero; t <= tr.t1; t += paso) candidatas.push({ x: X(t), texto: fechaCorta(new Date(t).toISOString()) });
     }
-    return { W, Y, franjas, puntosXY, ancho: Math.max(2.6, ancho), ticks, ymin, ymax, marcas: marcasY(metrica, franjas, ymin, ymax) };
-  }, [metrica, historial, referencia, dias, semanas, semanal]);
+    // Cada tramo con datos lleva al menos su primera fecha: si cae pegada a una franja, se alinea junto a su borde.
+    for (const tr of eje.tramos.filter((r) => !r.hueco)) {
+      const primera = conValor.find((p) => centro(p) >= tr.t0 && centro(p) <= tr.t1);
+      if (primera) candidatas.push({ x: X(centro(primera)), texto: fechaCorta(primera.start_date) });
+    }
+    const ticks: Array<{ x: number; texto: string; ancla: 'start' | 'middle' | 'end' }> = [];
+    for (const c of candidatas.sort((a, b) => a.x - b.x)) {
+      const despues = huecos.find((h) => c.x >= h.x1 && c.x < h.x1 + 18);
+      const antes = huecos.find((h) => c.x <= h.x0 && c.x > h.x0 - 18);
+      const t = despues
+        ? { ...c, x: despues.x1 + 2, ancla: 'start' as const }
+        : antes
+          ? { ...c, x: antes.x0 - 2, ancla: 'end' as const }
+          : c.x > PL + W - 16
+            ? { ...c, ancla: 'end' as const } // pegada al borde derecho: no se corta
+            : { ...c, ancla: 'middle' as const };
+      const previo = ticks[ticks.length - 1];
+      const lejosDelAnterior = !previo || t.x - previo.x >= 44 || (previo.ancla === 'end' && t.ancla === 'start');
+      if (lejosDelAnterior && !ticks.some((k) => k.texto === t.texto)) ticks.push(t);
+    }
+    return {
+      W,
+      Y,
+      franjas,
+      puntosXY,
+      huecos,
+      ancho: Math.max(2.6, ancho),
+      ticks,
+      ymin,
+      ymax,
+      marcas: marcasY(metrica, franjas, ymin, ymax),
+    };
+  }, [metrica, historial, referencia, semanal]);
 
   if (g.puntosXY.length === 0) {
     return <p className="an-vacio">Todavía no hay muestras de esta métrica. No se muestra como cero: aún no se ha medido.</p>;
@@ -140,6 +181,12 @@ export const GraficaMetrica: React.FC<Props> = ({ metrica, referencia, dias, sem
         onKeyDown={alTeclear}
         onBlur={() => setActivo(null)}
       >
+        <defs>
+          <pattern id="an-rayas" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+            <rect width="6" height="6" fill="var(--card)" />
+            <line x1="0" y1="0" x2="0" y2="6" stroke="var(--line)" strokeWidth="3" />
+          </pattern>
+        </defs>
         {g.franjas?.map((f, i) => (
           <rect
             key={i}
@@ -150,6 +197,22 @@ export const GraficaMetrica: React.FC<Props> = ({ metrica, referencia, dias, sem
             fill={COLOR_ESTADO[f.estado]}
             fillOpacity={f.estado === 'precaucion' ? 0.16 : 0.1}
           />
+        ))}
+        {g.huecos.map((h) => (
+          // Periodo sin muestras, comprimido: franja rayada con las dos fechas en vertical.
+          <g key={`hueco-${h.desde}`} className="an-hueco">
+            <title>{`Sin muestras del ${fechaCorta(h.desde ?? '')} al ${fechaCorta(h.hasta ?? '')}`}</title>
+            <rect x={h.x0} y={MT} width={h.x1 - h.x0} height={MH} fill="url(#an-rayas)" />
+            <line x1={h.x0} x2={h.x0} y1={MT} y2={MT + MH} stroke="var(--muted)" strokeDasharray="2 2" />
+            <line x1={h.x1} x2={h.x1} y1={MT} y2={MT + MH} stroke="var(--muted)" strokeDasharray="2 2" />
+            <text
+              className="an-hueco-txt"
+              transform={`translate(${(h.x0 + h.x1) / 2 + 3}, ${MT + MH / 2}) rotate(-90)`}
+              textAnchor="middle"
+            >
+              {`sin muestras · ${fechaCorta(h.desde ?? '')} – ${fechaCorta(h.hasta ?? '')}`}
+            </text>
+          </g>
         ))}
         <line x1={PL} y1={MT} x2={PL} y2={MT + MH} stroke="var(--line)" />
         {g.marcas.map((v) => (
@@ -171,12 +234,24 @@ export const GraficaMetrica: React.FC<Props> = ({ metrica, referencia, dias, sem
           ))
         ) : (
           <>
-            <polyline
-              fill="none"
-              stroke="var(--muted)"
-              strokeWidth={1.2}
-              points={g.puntosXY.map((q) => `${q.x.toFixed(1)},${q.y.toFixed(1)}`).join(' ')}
-            />
+            {/* La línea se corta en cada periodo sin muestras: no se inventa una tendencia donde no hubo datos. */}
+            {g.puntosXY
+              .reduce<Array<typeof g.puntosXY>>((tramos, q, i) => {
+                const antes = g.puntosXY[i - 1];
+                const cruzaHueco = antes && g.huecos.some((h) => antes.x <= h.x0 && q.x >= h.x1);
+                if (!antes || cruzaHueco) tramos.push([q]);
+                else tramos[tramos.length - 1].push(q);
+                return tramos;
+              }, [])
+              .map((tramo) => (
+                <polyline
+                  key={tramo[0].p.start_date}
+                  fill="none"
+                  stroke="var(--muted)"
+                  strokeWidth={1.2}
+                  points={tramo.map((q) => `${q.x.toFixed(1)},${q.y.toFixed(1)}`).join(' ')}
+                />
+              ))}
             {g.puntosXY.map((q, i) => (
               <circle
                 key={q.p.start_date}
@@ -192,7 +267,7 @@ export const GraficaMetrica: React.FC<Props> = ({ metrica, referencia, dias, sem
         )}
 
         {g.ticks.map((t) => (
-          <text key={t.texto + t.x} className="an-tk" x={t.x} y={VH - 6} textAnchor="middle">
+          <text key={t.texto + t.x} className="an-tk" x={t.x} y={VH - 6} textAnchor={t.ancla}>
             {t.texto}
           </text>
         ))}

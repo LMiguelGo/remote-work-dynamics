@@ -62,16 +62,38 @@ test('una dimension sin dato el ultimo dia conserva su ultimo valor con su fecha
   assert.equal(dsc.historial.length, 2);
 });
 
-test('una dimension sin datos en toda la ventana queda sin bloque diario', () => {
-  // Como Elena en produccion: S tiene datos hasta el 16 de octubre y A sigue hasta el 16 de noviembre.
+test('una serie sin datos desde hace un mes conserva sus ultimas muestras', () => {
+  // Como Elena en produccion: S tiene datos hasta el 16 de octubre y A sigue hasta el 16 de noviembre. Antes la ventana
+  // eran los ultimos 30 dias de calendario y S quedaba vacia; ahora entrega sus ultimas muestras y la grafica comprime el
+  // mes sin datos.
   const r = construirAnalitica({
     usuario: { id: 4 },
     catalogo: CATALOGO,
-    dimensiones: [dia('S', '2026-10-16'), dia('A', '2026-10-16'), dia('A', '2026-11-16')],
-    metricas: [],
+    dimensiones: [dia('S', '2026-10-15'), dia('S', '2026-10-16'), dia('A', '2026-10-16'), dia('A', '2026-11-16')],
+    metricas: [metrica('enps', '2026-10-15', 3), metrica('enps', '2026-10-16', 4)],
     correlaciones: null,
   });
   assert.equal(r.referencia, '2026-11-16');
-  assert.equal(r.dimensiones.find((d) => d.dimension === 'S').diaria, null);
-  assert.equal(r.dimensiones.find((d) => d.dimension === 'A').diaria.ultimo.start_date, '2026-11-16');
+  const S = r.dimensiones.find((d) => d.dimension === 'S');
+  assert.equal(S.diaria.ultimo.start_date, '2026-10-16');
+  assert.equal(S.diaria.historial.length, 2);
+  const enps = S.metricas.find((m) => m.metric_name === 'enps');
+  assert.deepEqual(enps.historial.map((p) => p.start_date), ['2026-10-15', '2026-10-16']);
+});
+
+test('cada serie entrega como maximo sus ultimas `dias` muestras', () => {
+  const fechas = Array.from({ length: 40 }, (_, i) => `2026-09-${String(i + 1).padStart(2, '0')}`).slice(0, 30)
+    .concat(Array.from({ length: 10 }, (_, i) => `2026-10-${String(i + 1).padStart(2, '0')}`));
+  const r = construirAnalitica({
+    usuario: { id: 4 },
+    catalogo: CATALOGO,
+    dimensiones: fechas.map((f) => dia('A', f)),
+    metricas: fechas.map((f) => metrica('dias_sin_commits', f)),
+    correlaciones: null,
+    dias: 30,
+  });
+  const A = r.dimensiones.find((d) => d.dimension === 'A');
+  assert.equal(A.diaria.historial.length, 30);
+  assert.equal(A.diaria.historial[0].start_date, '2026-09-11');
+  assert.equal(A.metricas.find((m) => m.metric_name === 'dias_sin_commits').historial.length, 30);
 });

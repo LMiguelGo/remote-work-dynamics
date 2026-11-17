@@ -79,12 +79,16 @@ function construirAnalitica({ usuario, catalogo, dimensiones, metricas, correlac
 
   const filasDia = filasDimension.filter((r) => r.frequency === 'day' && r.start_date === r.end_date);
   const referencia = diaDeReferencia(filasDia);
-  const desdeDia = referencia ? sumarDias(referencia, -(dias - 1)) : null;
-  const desdeSemana = referencia ? sumarDias(referencia, -(7 * semanas - 1)) : null;
 
-  // Una fila entra a una ventana si empieza dentro de ella y no despues del dia de referencia.
-  const enDias = (r) => referencia && r.start_date >= desdeDia && r.start_date <= referencia;
-  const enSemanas = (r) => referencia && r.start_date >= desdeSemana && r.start_date <= referencia;
+  // Cada serie entrega sus ultimas `dias` muestras diarias (o `semanas` semanales) hasta el dia de referencia, aunque
+  // sean viejas: una metrica que no recibe datos desde hace un mes sigue mostrando sus ultimas muestras, y la grafica
+  // comprime el periodo vacio. Antes la ventana eran los ultimos `dias` de calendario y esas series quedaban vacias.
+  const hastaRef = (r) => referencia && r.start_date <= referencia;
+  const ultimas = (filas, n) =>
+    filas
+      .filter(hastaRef)
+      .sort((a, b) => (a.start_date < b.start_date ? -1 : 1))
+      .slice(-n);
 
   const filasPorMetrica = new Map();
   for (const r of filasMetrica) {
@@ -97,10 +101,10 @@ function construirAnalitica({ usuario, catalogo, dimensiones, metricas, correlac
 
     const metricasSalida = delCatalogo.map((m) => {
       const diaria = m.frecuencia === 'diaria';
-      const historial = (filasPorMetrica.get(m.metric_name) || [])
-        .filter((r) => (diaria ? r.start_date === r.end_date && enDias(r) : r.start_date !== r.end_date && enSemanas(r)))
-        .sort((a, b) => (a.start_date < b.start_date ? -1 : 1))
-        .map(puntoMetrica);
+      const historial = ultimas(
+        (filasPorMetrica.get(m.metric_name) || []).filter((r) => (diaria ? r.start_date === r.end_date : r.start_date !== r.end_date)),
+        diaria ? dias : semanas,
+      ).map(puntoMetrica);
       const entrada = {
         metric_name: m.metric_name,
         nombre: m.nombre,
@@ -122,20 +126,17 @@ function construirAnalitica({ usuario, catalogo, dimensiones, metricas, correlac
       metricasSalida.filter((m) => m.frecuencia === frecuencia && m.historial.some((p) => p.start_date === fecha)).length;
     const totalEn = (frecuencia) => metricasSalida.filter((m) => m.frecuencia === frecuencia).length;
 
-    const historialDia = filasDia
-      .filter((r) => r.dimension === dim && enDias(r))
-      .sort((a, b) => (a.start_date < b.start_date ? -1 : 1))
-      .map(puntoDimension);
-    const historialSemana = filasDimension
-      .filter((r) => r.dimension === dim && r.frequency === 'week' && enSemanas(r))
-      .sort((a, b) => (a.start_date < b.start_date ? -1 : 1))
-      .map(puntoDimension);
+    const historialDia = ultimas(filasDia.filter((r) => r.dimension === dim), dias).map(puntoDimension);
+    const historialSemana = ultimas(
+      filasDimension.filter((r) => r.dimension === dim && r.frequency === 'week'),
+      semanas,
+    ).map(puntoDimension);
     // Resultado semanal de las metricas diarias: es el promedio de la semana de los puntos diarios (frecuencia 'day' con
     // rango lunes-domingo). No se mezcla con el historial diario ni con el semanal.
-    const promediosSemanales = filasDimension
-      .filter((r) => r.dimension === dim && r.frequency === 'day' && r.start_date !== r.end_date && enSemanas(r))
-      .sort((a, b) => (a.start_date < b.start_date ? -1 : 1))
-      .map(puntoDimension);
+    const promediosSemanales = ultimas(
+      filasDimension.filter((r) => r.dimension === dim && r.frequency === 'day' && r.start_date !== r.end_date),
+      semanas,
+    ).map(puntoDimension);
 
     const diaria = bloque(historialDia, medidasEn('diaria'), totalEn('diaria'));
     if (diaria) diaria.promedios_semanales = promediosSemanales;
