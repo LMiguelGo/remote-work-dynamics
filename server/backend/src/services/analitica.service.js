@@ -22,17 +22,18 @@ function redondear1(n) {
   return Math.round(n * 10) / 10;
 }
 
-// Dia de referencia: el ultimo dia con resultado de al menos dos dimensiones. Un dia suelto con una sola dimension (por
-// ejemplo un fin de semana en que solo se guarda "dias sin commits") no cuenta como "el ultimo dia".
+// Dia de referencia: el ultimo dia que la analitica calculo para la persona, aunque ese dia solo tenga una dimension.
+// Las graficas terminan en ese dia, asi que los dias sin datos se ven como un hueco hasta hoy, y cada dimension dice
+// desde cuando no tiene dato.
+// Caso real (2026-11-17, produccion): antes se tomaba el ultimo dia con al menos dos dimensiones y se ocultaba todo lo
+// posterior. Cuando solo llegaba "dias sin commits" (dimension A), los cierres de cada noche se guardaban pero el panel
+// seguia en el 16 de octubre, como si la analitica no se hubiera actualizado.
 function diaDeReferencia(filasDia) {
-  const dimsPorDia = new Map();
+  let ultimo = null;
   for (const f of filasDia) {
-    if (!dimsPorDia.has(f.start_date)) dimsPorDia.set(f.start_date, new Set());
-    dimsPorDia.get(f.start_date).add(f.dimension);
+    if (f.start_date && (ultimo === null || f.start_date > ultimo)) ultimo = f.start_date;
   }
-  const dias = [...dimsPorDia.keys()].sort().reverse();
-  if (dias.length === 0) return null;
-  return dias.find((d) => dimsPorDia.get(d).size >= 2) || dias[0];
+  return ultimo;
 }
 
 const puntoDimension = (r) => ({

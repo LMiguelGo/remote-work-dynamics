@@ -1364,6 +1364,12 @@ table.tabla {
   color: var(--muted);
 }
 
+/* Dimensión sin dato el último día calculado: su puntaje es viejo */
+.an-dim-delta.an-dim-viejo {
+  color: var(--amber);
+  font-weight: 600;
+}
+
 .an-res-lbl {
   display: block;
   font-weight: 700;

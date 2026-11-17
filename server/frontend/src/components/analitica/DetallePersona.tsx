@@ -11,9 +11,11 @@ import { SemaphoreChip } from '../SemaphoreChip';
 import {
   ESTADO_TEXTO,
   estadoDePuntaje,
+  fechaCorta,
   fechaLarga,
   nivelDeEstado,
   rangoFechas,
+  sumarDias,
 } from '../../utils/analitica';
 import { Correlaciones } from './Correlaciones';
 import { TarjetaMetrica } from './TarjetaMetrica';
@@ -145,6 +147,8 @@ export const DetallePersona: React.FC<Props> = ({ rutaBase, personaId }) => {
   // ---- tarjetas por dimensión ----
   const tarjetaDia = (d: DimensionDetalle) => {
     const b = d.diaria;
+    // Sin bloque diario puede ser porque la dimensión no tiene métricas diarias (C) o porque no tuvo datos en la ventana.
+    const tieneDiarias = d.metricas.some((m) => m.frecuencia === 'diaria');
     return (
       <button
         key={d.dimension}
@@ -161,14 +165,29 @@ export const DetallePersona: React.FC<Props> = ({ rutaBase, personaId }) => {
               text={b.ultimo.criticality_status ? ESTADO_TEXTO[b.ultimo.criticality_status] : 'Sin dato'}
             />
           ) : (
-            <SemaphoreChip level="none" text="Sin métricas diarias" />
+            <SemaphoreChip level="none" text={tieneDiarias ? 'Sin datos' : 'Sin métricas diarias'} />
           )}
         </span>
         {b ? (
           <>
             <Puntaje punto={b.ultimo} />
-            <span className="an-dim-delta">{textoVariacion(b.variacion, 'frente al día anterior')}</span>
+            {b.ultimo.start_date === ref ? (
+              <span className="an-dim-delta">
+                {textoVariacion(
+                  b.variacion,
+                  // Si el punto anterior no es el día de antes (hubo días sin dato), se dice con qué fecha se compara.
+                  b.anterior && b.anterior.start_date !== sumarDias(b.ultimo.start_date, -1)
+                    ? `frente al ${fechaCorta(b.anterior.start_date)}`
+                    : 'frente al día anterior',
+                )}
+              </span>
+            ) : (
+              // Sin dato el día calculado: el puntaje es el último que hubo y se dice de cuándo es.
+              <span className="an-dim-delta an-dim-viejo">Sin datos desde el {fechaCorta(b.ultimo.start_date)}</span>
+            )}
           </>
+        ) : tieneDiarias ? (
+          <span className="an-dim-delta an-dim-viejo">Sin datos en los últimos {dias} días</span>
         ) : (
           <span className="an-dim-delta">Se miden por semana: están en la pestaña Semana.</span>
         )}
@@ -330,7 +349,8 @@ export const DetallePersona: React.FC<Props> = ({ rutaBase, personaId }) => {
     <div className="an-panel">
       <div className="an-bar">
         <p className="an-nota">
-          Último día con datos: {fechaLarga(ref)}. Los puntajes van de 0 a 10 y los calcula la analítica; aquí solo se dibujan.
+          Último día calculado: {fechaLarga(ref)}. Las dimensiones sin datos ese día muestran su último valor y desde
+          cuándo no se actualiza. Los puntajes van de 0 a 10 y los calcula la analítica; aquí solo se dibujan.
         </p>
         <div className="an-tabs" role="tablist" aria-label="Periodo">
           <button role="tab" aria-selected={vista === 'dia'} className={vista === 'dia' ? 'on' : ''} onClick={() => setVista('dia')}>
