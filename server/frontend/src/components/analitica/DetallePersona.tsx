@@ -13,6 +13,7 @@ import {
   estadoDePuntaje,
   fechaCorta,
   fechaLarga,
+  msDe,
   nivelDeEstado,
   rangoFechas,
   sumarDias,
@@ -151,6 +152,9 @@ export const DetallePersona: React.FC<Props> = ({ rutaBase, personaId }) => {
 
   const ref = data.referencia;
   const { dias, semanas } = data.ventana;
+  // Semana vigente para las relaciones semanales: la última semana cerrada (lunes a domingo) antes del día calculado, porque
+  // el cierre semanal corre el lunes. Una relación semanal más vieja no se muestra con su mensaje antiguo.
+  const ultimaSemana = ref ? sumarDias(ref, -(((new Date(msDe(ref)).getUTCDay() + 6) % 7) + 7)) : null;
   const filasCorr = data.correlaciones?.metricas ?? [];
 
   const alternar = (d: DimensionDetalle) => setDimElegida((actual) => (actual === d.dimension ? null : d.dimension));
@@ -296,7 +300,12 @@ export const DetallePersona: React.FC<Props> = ({ rutaBase, personaId }) => {
           significativa frente al historial de la persona.
         </p>
         {data.correlaciones ? (
-          <Correlaciones filas={relacionadas} metricas={metricasPorNombre} vacio="Esta dimensión no entra en ninguna correlación diaria." />
+          <Correlaciones
+            filas={relacionadas}
+            metricas={metricasPorNombre}
+            vacio="Esta dimensión no entra en ninguna correlación diaria."
+            periodoVigente={ref}
+          />
         ) : (
           <p className="an-vacio">Las correlaciones no están disponibles en este momento.</p>
         )}
@@ -348,7 +357,12 @@ export const DetallePersona: React.FC<Props> = ({ rutaBase, personaId }) => {
 
         <h4 className="an-sec">Qué dicen los datos de la semana</h4>
         {data.correlaciones ? (
-          <Correlaciones filas={relacionadas} metricas={metricasPorNombre} vacio="Esta dimensión no entra en ninguna correlación semanal." />
+          <Correlaciones
+            filas={relacionadas}
+            metricas={metricasPorNombre}
+            vacio="Esta dimensión no entra en ninguna correlación semanal."
+            periodoVigente={ultimaSemana}
+          />
         ) : (
           <p className="an-vacio">Las correlaciones no están disponibles en este momento.</p>
         )}

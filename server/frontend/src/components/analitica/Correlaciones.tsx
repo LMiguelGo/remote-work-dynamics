@@ -1,6 +1,13 @@
 import React from 'react';
 import type { CorrelacionMetricas, EstadoMetricaCorrelacion, ExplicacionCorrelacion, MetricaDetalle } from '../../types';
-import { ESTADO_CORRELACION, FUERZA_CORRELACION, formatearValor, ordenarCorrelaciones } from '../../utils/analitica';
+import {
+  ESTADO_CORRELACION,
+  FUERZA_CORRELACION,
+  fechaCorta,
+  fechaLarga,
+  formatearValor,
+  ordenarCorrelaciones,
+} from '../../utils/analitica';
 
 type MetricasPorNombre = Map<string, MetricaDetalle>;
 
@@ -62,7 +69,11 @@ const ExplicacionTecnica: React.FC<{ e: ExplicacionCorrelacion; id: string }> = 
   </div>
 );
 
-const TarjetaCorrelacion: React.FC<{ c: CorrelacionMetricas; metricas: MetricasPorNombre }> = ({ c, metricas }) => {
+const TarjetaCorrelacion: React.FC<{ c: CorrelacionMetricas; metricas: MetricasPorNombre; vieja: boolean }> = ({
+  c,
+  metricas,
+  vieja,
+}) => {
   const tecId = React.useId();
   // Un estado que este frontend no conoce se muestra tal cual y sin énfasis, en vez de romper la tarjeta.
   const e = ESTADO_CORRELACION[c.estado] ?? { texto: String(c.estado), clase: 'tenue' };
@@ -79,6 +90,7 @@ const TarjetaCorrelacion: React.FC<{ c: CorrelacionMetricas; metricas: MetricasP
         <span title={`Dimensiones ${c.dimension_a} y ${c.dimension_b}`}>{c.contexto}</span>
         <span className={`an-est ${e.clase}`}>{e.texto}</span>
       </div>
+      <p className={`an-corr-fecha${vieja ? ' vieja' : ''}`}>{textoCorresponde(c)}</p>
       <div
         className={`an-corr-zona${c.explicacion ? ' con-tec' : ''}`}
         tabIndex={c.explicacion ? 0 : undefined}
@@ -100,17 +112,33 @@ const TarjetaCorrelacion: React.FC<{ c: CorrelacionMetricas; metricas: MetricasP
   );
 };
 
+// Cada relación dice a qué día (o semana) corresponden sus datos: el último periodo en que se midieron las dos métricas.
+// Si es anterior al periodo que se está viendo, la nota se resalta para que no se lea como si fuera de hoy.
 export const Correlaciones: React.FC<{
   filas: CorrelacionMetricas[];
   metricas: MetricasPorNombre;
   vacio: string;
-}> = ({ filas, metricas, vacio }) => {
+  periodoVigente: string | null; // 'YYYY-MM-DD' del día (o del lunes de la semana) que se está viendo
+}> = ({ filas, metricas, vacio, periodoVigente }) => {
   if (filas.length === 0) return <p className="an-vacio">{vacio}</p>;
   return (
     <div className="an-corrs">
       {ordenarCorrelaciones(filas).map((c) => (
-        <TarjetaCorrelacion key={`${c.id}-${c.metrica_a}-${c.metrica_b}`} c={c} metricas={metricas} />
+        <TarjetaCorrelacion
+          key={`${c.id}-${c.metrica_a}-${c.metrica_b}`}
+          c={c}
+          metricas={metricas}
+          vieja={c.periodo_referencia == null || (periodoVigente != null && c.periodo_referencia < periodoVigente)}
+        />
       ))}
     </div>
   );
 };
+
+// "Esta relación corresponde al mar 17 nov" / "a la semana del 9 nov".
+function textoCorresponde(c: CorrelacionMetricas): string {
+  if (!c.periodo_referencia) return 'Todavía no hay un día con las dos métricas medidas';
+  return c.periodo === 'dia'
+    ? `Esta relación corresponde al ${fechaLarga(c.periodo_referencia)}`
+    : `Esta relación corresponde a la semana del ${fechaCorta(c.periodo_referencia)}`;
+}
