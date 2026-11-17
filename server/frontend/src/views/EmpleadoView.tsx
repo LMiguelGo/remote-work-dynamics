@@ -104,12 +104,14 @@ export const EmpleadoView: React.FC = () => {
     return () => clearInterval(t);
   }, []);
 
-  const cargarDatos = useCallback(async () => {
+  // `inicial` también llena el formulario de umbrales; las recargas posteriores (tras una encuesta o un cambio de jornada)
+  // no lo pisan, para no borrar lo que la persona está escribiendo.
+  const cargarDatos = useCallback(async (inicial = false) => {
     try {
       const res = await api<EmpleadoPanelData>('/api/mi-panel');
       setAhora(Date.now());
       setData(res);
-      setUmbrales(aFormulario(res.ambiente?.umbrales ?? null));
+      if (inicial) setUmbrales(aFormulario(res.ambiente?.umbrales ?? null));
       setErrorCarga(null);
     } catch (err) {
       // 401 y debe_cambiar_clave ya los resuelve AuthContext; aquí solo se informa el resto.
@@ -120,7 +122,7 @@ export const EmpleadoView: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    void cargarDatos();
+    void cargarDatos(true);
   }, [cargarDatos]);
 
   if (cargando) {
@@ -135,7 +137,7 @@ export const EmpleadoView: React.FC = () => {
     return (
       <div className="page">
         <p className="error">{errorCarga ?? 'No se pudo cargar tu panel.'}</p>
-        <button className="btn" onClick={() => void cargarDatos()}>
+        <button className="btn" onClick={() => void cargarDatos(true)}>
           Reintentar
         </button>
       </div>
