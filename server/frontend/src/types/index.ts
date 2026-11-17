@@ -378,8 +378,9 @@ export interface CorrelacionMetricas {
   significativa: boolean;
   estado: EstadoCorrelacion;
   mensaje: string; // el texto que se imprime siempre
+  marcas?: { a: string | null; b: string | null }; // texto exacto que nombra cada métrica dentro de `mensaje`
   aviso: string | null;
-  explicacion?: ExplicacionCorrelacion; // cómo se obtuvo; se muestra al pasar el puntero por las gráficas
+  explicacion?: ExplicacionCorrelacion; // cómo se obtuvo; se muestra al pasar el puntero por el mensaje
 }
 
 // Líneas cortas que explican la técnica detrás de una correlación. calculo es null si no hay coeficiente.
@@ -440,5 +441,6 @@ export interface RegistroReciente {
 export interface RespuestaRegistros {
   tipo: TipoRegistro;
   limite: number;
+  generado_en?: string; // hora del servidor al responder
   registros: RegistroReciente[]; // en orden de llegada, los más recientes primero
 }

@@ -4,59 +4,48 @@ import { ESTADO_CORRELACION, FUERZA_CORRELACION, formatearValor, ordenarCorrelac
 
 type MetricasPorNombre = Map<string, MetricaDetalle>;
 
-// Línea pequeña de una de las dos series de la correlación, con su valor habitual punteado. Los valores son los crudos de
-// los periodos con los que se calculó el coeficiente, así que la gráfica coincide con el diagnóstico.
-const Linea: React.FC<{ valores: number[]; habitual: number | null | undefined; color: string }> = ({
-  valores,
-  habitual,
-  color,
-}) => {
-  if (valores.length === 0) return <svg viewBox="0 0 240 90" className="an-spark" aria-hidden="true" />;
-  const todos = habitual == null ? valores : [...valores, habitual];
-  let lo = Math.min(...todos);
-  let hi = Math.max(...todos);
-  if (hi === lo) {
-    hi += 1;
-    lo -= 1;
-  }
-  const X = (i: number) => 6 + (valores.length > 1 ? i / (valores.length - 1) : 1) * 228;
-  const Y = (v: number) => 8 + 74 * (1 - (v - lo) / (hi - lo));
-  const ult = valores.length - 1;
-  return (
-    <svg viewBox="0 0 240 90" className="an-spark" preserveAspectRatio="none" aria-hidden="true">
-      {habitual != null && (
-        <line x1={6} x2={234} y1={Y(habitual)} y2={Y(habitual)} stroke="var(--line)" strokeDasharray="3 3" />
-      )}
-      <polyline
-        fill="none"
-        stroke={color}
-        strokeWidth={2}
-        points={valores.map((v, i) => `${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join(' ')}
-      />
-      <circle cx={X(ult)} cy={Y(valores[ult])} r={3.5} fill={color} />
-    </svg>
-  );
-};
+// Nombre de la métrica y su valor del último periodo, para el texto al pasar el cursor por la parte subrayada.
+function rotulo(metrica: MetricaDetalle | undefined, nombre: string, est: EstadoMetricaCorrelacion | null): string {
+  const base = metrica?.nombre ?? nombre;
+  if (!est || !metrica) return base;
+  const habitual = est.habitual != null ? ` · habitual ${formatearValor(metrica, est.habitual)}` : '';
+  return `${base}: ${formatearValor(metrica, est.valor)}${habitual}`;
+}
 
-const Encabezado: React.FC<{ metrica: MetricaDetalle | undefined; nombre: string; est: EstadoMetricaCorrelacion | null }> = ({
-  metrica,
-  nombre,
-  est,
-}) => (
-  <div className="an-corr-hd">
-    {metrica?.nombre ?? nombre}
-    {est && metrica && (
-      <>
-        {' '}
-        <b>{formatearValor(metrica, est.valor)}</b>
-        {est.habitual != null && <span className="an-mut"> · habitual {formatearValor(metrica, est.habitual)}</span>}
-      </>
-    )}
-  </div>
-);
+interface Marca {
+  texto: string;
+  titulo: string;
+}
+
+// Parte el mensaje para subrayar el texto que nombra cada métrica (la analítica dice cuál es en `marcas`). Si una marca
+// no aparece o se cruza con la otra, el mensaje se muestra sin ese subrayado en vez de romperse.
+function mensajeConMarcas(mensaje: string, marcas: Marca[]): React.ReactNode[] {
+  const tramos: { ini: number; fin: number; titulo: string }[] = [];
+  for (const m of marcas) {
+    if (!m.texto) continue;
+    const ini = mensaje.indexOf(m.texto);
+    const fin = ini + m.texto.length;
+    if (ini < 0 || tramos.some((t) => ini < t.fin && t.ini < fin)) continue;
+    tramos.push({ ini, fin, titulo: m.titulo });
+  }
+  tramos.sort((x, y) => x.ini - y.ini);
+  const partes: React.ReactNode[] = [];
+  let pos = 0;
+  for (const t of tramos) {
+    if (t.ini > pos) partes.push(mensaje.slice(pos, t.ini));
+    partes.push(
+      <span key={t.ini} className="an-corr-met" title={t.titulo}>
+        {mensaje.slice(t.ini, t.fin)}
+      </span>,
+    );
+    pos = t.fin;
+  }
+  if (pos < mensaje.length) partes.push(mensaje.slice(pos));
+  return partes;
+}
 
 // Recuadro con la técnica detrás de la relación (qué se compara, cálculo, confianza y lo esperado). Aparece al pasar el
-// puntero por las gráficas o al enfocarlas con el teclado.
+// puntero por el mensaje o al enfocarlo con el teclado.
 const ExplicacionTecnica: React.FC<{ e: ExplicacionCorrelacion; id: string }> = ({ e, id }) => (
   <div className="an-corr-tec" role="tooltip" id={id}>
     <div className="an-corr-tec-tit">Cómo se obtuvo</div>
@@ -77,32 +66,25 @@ const TarjetaCorrelacion: React.FC<{ c: CorrelacionMetricas; metricas: MetricasP
   const tecId = React.useId();
   // Un estado que este frontend no conoce se muestra tal cual y sin énfasis, en vez de romper la tarjeta.
   const e = ESTADO_CORRELACION[c.estado] ?? { texto: String(c.estado), clase: 'tenue' };
-  const serie = c.serie ?? [];
   const ma = metricas.get(c.metrica_a);
   const mb = metricas.get(c.metrica_b);
   const periodos = `${c.n_muestras} ${c.periodo === 'dia' ? (c.n_muestras === 1 ? 'día' : 'días') : c.n_muestras === 1 ? 'semana' : 'semanas'}`;
+  const partes = mensajeConMarcas(c.mensaje, [
+    { texto: c.marcas?.a ?? '', titulo: rotulo(ma, c.metrica_a, c.a) },
+    { texto: c.marcas?.b ?? '', titulo: rotulo(mb, c.metrica_b, c.b) },
+  ]);
   return (
     <div className="an-corr">
       <div className="an-corr-ctx">
         <span title={`Dimensiones ${c.dimension_a} y ${c.dimension_b}`}>{c.contexto}</span>
         <span className={`an-est ${e.clase}`}>{e.texto}</span>
       </div>
-      <p className={`an-corr-msg${c.estado === 'diagnostico' ? '' : ' sin'}`}>{c.mensaje}</p>
       <div
         className={`an-corr-zona${c.explicacion ? ' con-tec' : ''}`}
         tabIndex={c.explicacion ? 0 : undefined}
         aria-describedby={c.explicacion ? tecId : undefined}
       >
-        <div className="an-corr-dos">
-          <div>
-            <Encabezado metrica={ma} nombre={c.metrica_a} est={c.a} />
-            <Linea valores={serie.map((s) => s[1])} habitual={c.a?.habitual} color="var(--amber)" />
-          </div>
-          <div>
-            <Encabezado metrica={mb} nombre={c.metrica_b} est={c.b} />
-            <Linea valores={serie.map((s) => s[2])} habitual={c.b?.habitual} color="var(--blue)" />
-          </div>
-        </div>
+        <p className={`an-corr-msg${c.estado === 'diagnostico' ? '' : ' sin'}`}>{partes}</p>
         {c.explicacion && <ExplicacionTecnica e={c.explicacion} id={tecId} />}
       </div>
       <div className="an-corr-pie">

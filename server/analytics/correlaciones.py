@@ -223,7 +223,7 @@ PLANTILLA_SOLO_B = "{A}, pero {b}. Esta vez el problema en {eb} no parece venir 
 PLANTILLA_SIN_HISTORICO = "{A}; {b}."
 
 
-# ---- Explicación técnica corta (se muestra al pasar el puntero sobre las gráficas de la tarjeta) ----
+# ---- Explicación técnica corta (se muestra al pasar el puntero sobre el mensaje de la tarjeta) ----
 # Qué se compara de cada métrica, dicho para cualquier persona.
 QUE_SE_COMPARA = {
     "tiempo_extralaboral_pct": "sus horas extra", "fiabilidad_prs": "el % de sus cambios de código aprobados en la primera revisión",
@@ -366,9 +366,10 @@ def _mal(metrica: str, e: dict) -> bool:
     return True
 
 
-def _conclusion(c: dict, ma: str, mb: str, a: dict, b: dict) -> str:
+def _conclusion(c: dict, ma: str, mb: str, a: dict, b: dict) -> tuple[str, str, str]:
     """El texto depende del estado de las dos métricas: ambas fuera de su zona óptima (plantilla de la relación),
-    ambas en zona óptima, solo A o solo B. Si alguna aún no tiene histórico no se afirma nada sobre su estado."""
+    ambas en zona óptima, solo A o solo B. Si alguna aún no tiene histórico no se afirma nada sobre su estado.
+    Devuelve el texto y las frases que describen A y B dentro de él (para subrayarlas en la tarjeta)."""
     if "sin_historico" in (a["criticidad"], b["criticidad"]):
         plantilla = PLANTILLA_SIN_HISTORICO
     else:
@@ -380,8 +381,11 @@ def _conclusion(c: dict, ma: str, mb: str, a: dict, b: dict) -> str:
         else:
             plantilla = PLANTILLA_SOLO_A if a_mal else PLANTILLA_SOLO_B
     frase_a = FRASES[ma](a["valor"], a["habitual"])
-    return plantilla.format(A=frase_a[0].upper() + frase_a[1:], b=FRASES[mb](b["valor"], b["habitual"]),
-                            ea=ETIQUETAS[ma], eb=ETIQUETAS[mb], de_ea=_de(ETIQUETAS[ma]), de_eb=_de(ETIQUETAS[mb]))
+    frase_a = frase_a[0].upper() + frase_a[1:]
+    frase_b = FRASES[mb](b["valor"], b["habitual"])
+    texto = plantilla.format(A=frase_a, b=frase_b, ea=ETIQUETAS[ma], eb=ETIQUETAS[mb],
+                             de_ea=_de(ETIQUETAS[ma]), de_eb=_de(ETIQUETAS[mb]))
+    return texto, frase_a, frase_b
 
 
 def correlacionar_metricas(filas: list[dict]) -> list[dict]:
@@ -409,6 +413,8 @@ def correlacionar_metricas(filas: list[dict]) -> list[dict]:
                     r = _pearson(pares)
                     significativa = _significativa(r, len(pares))
                     n = len(pares)
+                    # Partes del mensaje que nombran cada métrica: la tarjeta las subraya.
+                    marca_a, marca_b = ETIQUETAS[ma], ETIQUETAS[mb]
                     if r is None and n < MIN_MUESTRAS:
                         estado = "datos_insuficientes"
                         detalle = (f"Todavía no hay datos suficientes para saber si {ETIQUETAS[ma]} y {ETIQUETAS[mb]} "
@@ -416,8 +422,8 @@ def correlacionar_metricas(filas: list[dict]) -> list[dict]:
                                    f"con ambas medidas y hay {n}.")
                     elif r is None:  # hay muestras suficientes, pero una de las dos series no cambia
                         estado = "datos_insuficientes"
-                        detalle = (f"Una de las dos medidas no ha cambiado en {_estos(n, periodo)}, "
-                                   f"así que no se puede saber si se relacionan.")
+                        detalle = (f"Una de las dos medidas, {ETIQUETAS[ma]} o {ETIQUETAS[mb]}, no ha cambiado en "
+                                   f"{_estos(n, periodo)}, así que no se puede saber si se relacionan.")
                     elif not significativa:
                         estado = "no_significativa"
                         detalle = (f"En {_ultimos(n, periodo)}, {ETIQUETAS[ma]} y {ETIQUETAS[mb]} no han cambiado a la par "
@@ -428,6 +434,7 @@ def correlacionar_metricas(filas: list[dict]) -> list[dict]:
                                    f"como se esperaba. {AVISO_CAUSALIDAD}")
                     else:
                         estado = "patron_distinto"
+                        marca_a, marca_b = _sube(ma), _se_mueve(mb, r > 0)
                         detalle = (f"En {_ultimos(n, periodo)}, cuando {_sube(ma)}, {_se_mueve(mb, r > 0)}: lo contrario "
                                    f"de lo esperado. Conviene hablarlo con la persona antes de sacar conclusiones.")
 
@@ -437,7 +444,9 @@ def correlacionar_metricas(filas: list[dict]) -> list[dict]:
                     i = comunes[-1] if comunes else None
                     a = _estado(ma, historial, i) if comunes else None
                     b = _estado(mb, historial, i) if comunes else None
-                    conclusion = _conclusion(c, ma, mb, a, b) if estado == "diagnostico" else None
+                    conclusion = None
+                    if estado == "diagnostico":
+                        conclusion, marca_a, marca_b = _conclusion(c, ma, mb, a, b)
                     resultados.append({
                         "usuario_id": usuario,
                         "id": c["id"],
@@ -458,6 +467,8 @@ def correlacionar_metricas(filas: list[dict]) -> list[dict]:
                         "significativa": significativa,
                         "estado": estado,
                         "mensaje": conclusion or detalle,  # el texto que la tarjeta imprime siempre
+                        # Texto exacto que nombra cada métrica dentro de `mensaje`, para subrayarlo.
+                        "marcas": {"a": marca_a, "b": marca_b},
                         "aviso": AVISO_CAUSALIDAD if estado in ("diagnostico", "patron_distinto") else None,
                         "conclusion": conclusion,
                         "detalle": detalle,

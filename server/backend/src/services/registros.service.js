@@ -45,14 +45,17 @@ function filtrarPayload(payload, campos) {
 // construirRegistros(filas, tipo) -> respuesta
 //   filas: de events.repo.recientesDeUsuario, ya en orden de llegada (mas
 //          recientes primero): { id, time, payload }
-function construirRegistros(filas, tipo) {
+//   ahora: hora del servidor (inyectable en pruebas). Va en `generado_en` para que
+//          el tablero calcule cuanto lleva un sensor sin enviar con el reloj del
+//          servidor y no con el del computador de quien mira.
+function construirRegistros(filas, tipo, ahora = new Date()) {
   const campos = CAMPOS_POR_TIPO[tipo] || [];
   const registros = (filas || []).map((f) => ({
     id: String(f.id),
     time: f.time ? new Date(f.time).toISOString() : null,
     datos: filtrarPayload(f.payload, campos),
   }));
-  return { tipo, limite: LIMITE_REGISTROS, registros };
+  return { tipo, limite: LIMITE_REGISTROS, generado_en: ahora.toISOString(), registros };
 }
 
 module.exports = {
