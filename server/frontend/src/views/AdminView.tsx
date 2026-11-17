@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { api } from '../services/api';
 import { rolTexto } from '../utils/helpers';
 import type { Role } from '../types';
+import { ConfigRecalculo } from '../components/ConfigRecalculo';
 
 const ROLES: Role[] = ['empleado', 'lider', 'gerente', 'admin'];
 
@@ -144,6 +145,8 @@ export const AdminView: React.FC = () => {
           </div>
         )}
       </div>
+
+      <ConfigRecalculo />
 
       {error && <p className="error">{error}</p>}
 

@@ -9,7 +9,7 @@ El sprint es la semana calendario (lunes a domingo) hasta que se conozcan las fe
 from datetime import date, datetime, timedelta
 
 from correlaciones import METRICAS_SEMANALES
-from db import cargar_eventos, cargar_jornadas, existe_analisis, puntajes_diarios
+from db import borrar_analisis_dia, cargar_eventos, cargar_jornadas, existe_analisis, puntajes_diarios
 from derivadas import DURACION_PACTADA_H, calcular_metricas, historicos_sprints
 from pipeline import analizar_y_guardar
 
@@ -36,6 +36,14 @@ def cierre_dia(dia: date) -> dict[int, dict]:
         if valores:
             guardados[usuario] = analizar_y_guardar(usuario, dia, dia, valores)
     return guardados
+
+
+def recalcular_dia(dia: date) -> dict[int, dict]:
+    """Borra el resultado diario de `dia` y lo vuelve a calcular con todos los eventos que hayan llegado hasta ahora.
+    A diferencia de `cierre_dia`, que se salta un día ya calculado, este lo reemplaza: lo usa el recálculo periódico
+    para el día en curso y el cierre de medianoche para dejar completo el día que terminó."""
+    borrar_analisis_dia(dia)
+    return cierre_dia(dia)
 
 
 def cierre_ciclo(lunes: date) -> dict[int, dict]:

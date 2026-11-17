@@ -43,9 +43,13 @@ async function deUsuarios(pool, userIds, frequency = 'week') {
   return r.rows;
 }
 
-// Historial de una persona para las graficas: filas de dimension (frecuencias 'day' y 'week') y de metrica de los ultimos
-// `dias` / `semanas` contados hacia atras desde su ultimo dia con datos. El servicio afina despues el dia de referencia y
-// recorta cada serie; aqui solo se acota la lectura. Sin ningun dato devuelve listas vacias.
+// Cuanto historial se lee como maximo (dias hacia atras desde el ultimo dia calculado). El servicio toma de ahi las
+// ultimas `dias` / `semanas` muestras de cada serie, aunque entre ellas haya periodos largos sin datos.
+const HISTORIAL_MAX_DIAS = 365;
+
+// Historial de una persona para las graficas: filas de dimension (frecuencias 'day' y 'week') y de metrica del ultimo ano
+// contado hacia atras desde su ultimo dia calculado. El servicio afina despues el dia de referencia y recorta cada serie;
+// aqui solo se acota la lectura. Sin ningun dato devuelve listas vacias.
 async function historialDePersona(pool, userId, dias, semanas) {
   const tope = await pool.query(
     `SELECT max(start_date)::text AS ultima
@@ -56,7 +60,7 @@ async function historialDePersona(pool, userId, dias, semanas) {
   const ultima = tope.rows[0] && tope.rows[0].ultima;
   if (!ultima) return { dimensiones: [], metricas: [] };
 
-  const atras = Math.max(dias - 1, 7 * semanas - 1);
+  const atras = Math.max(HISTORIAL_MAX_DIAS, dias - 1, 7 * semanas - 1);
   const dims = await pool.query(
     `SELECT dimension, frequency, start_date::text AS start_date, end_date::text AS end_date,
             normalized_score, criticality_status

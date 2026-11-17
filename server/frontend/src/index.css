@@ -1364,6 +1364,12 @@ table.tabla {
   color: var(--muted);
 }
 
+/* Dimensión sin dato el último día calculado: su puntaje es viejo */
+.an-dim-delta.an-dim-viejo {
+  color: var(--amber);
+  font-weight: 600;
+}
+
 .an-res-lbl {
   display: block;
   font-weight: 700;
@@ -1511,6 +1517,13 @@ table.tabla {
 .an-tk {
   font-size: 10px;
   fill: var(--muted);
+}
+
+/* Periodo sin muestras comprimido dentro de una gráfica */
+.an-hueco-txt {
+  font-size: 9px;
+  fill: var(--ink2);
+  font-weight: 600;
 }
 
 .an-tip {
@@ -1680,5 +1693,16 @@ table.tabla {
   text-decoration-color: var(--blue);
   text-decoration-thickness: 2px;
   text-underline-offset: 3px;
+  font-weight: 600;
+}
+
+/* A qué día corresponde una relación; en ámbar si es anterior al día que se está viendo */
+.an-corr-fecha {
+  margin: 0 0 6px;
+  font-size: 0.76rem;
+  color: var(--muted);
+}
+.an-corr-fecha.vieja {
+  color: var(--amber);
   font-weight: 600;
 }

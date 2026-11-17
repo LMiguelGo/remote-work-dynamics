@@ -410,11 +410,12 @@ export interface CorrelacionesPersona {
 
 export interface AnaliticaPersona {
   usuario: PersonaBasica | null;
-  referencia: string | null; // último día con resultados de al menos dos dimensiones
-  ventana: { dias: number; semanas: number };
+  referencia: string | null; // último día calculado (aunque tenga una sola dimensión)
+  ventana: { dias: number; semanas: number }; // últimas muestras de cada serie, no días de calendario
   catalogo_version: string | null;
   dimensiones: DimensionDetalle[]; // siempre las cinco
   correlaciones: CorrelacionesPersona | null; // null si la analítica no respondió
+  recalculo_minutos?: number; // cada cuánto recalcula la analítica; con menos de 1440 el detalle se refresca solo
 }
 
 // --- Últimos registros de un integrante (líder y gerente) ---

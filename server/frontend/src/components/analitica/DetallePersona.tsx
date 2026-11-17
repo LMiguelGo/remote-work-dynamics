@@ -11,9 +11,12 @@ import { SemaphoreChip } from '../SemaphoreChip';
 import {
   ESTADO_TEXTO,
   estadoDePuntaje,
+  fechaCorta,
   fechaLarga,
+  msDe,
   nivelDeEstado,
   rangoFechas,
+  sumarDias,
 } from '../../utils/analitica';
 import { Correlaciones } from './Correlaciones';
 import { TarjetaMetrica } from './TarjetaMetrica';
@@ -73,6 +76,17 @@ export const DetallePersona: React.FC<Props> = ({ rutaBase, personaId }) => {
     error: string | null;
   } | null>(null);
 
+  // Si el administrador configuró un recálculo de menos de 24 h, el detalle se vuelve a pedir solo a ese ritmo (cada mitad
+  // del intervalo, entre 30 s y 5 min), sin pasar a "cargando" ni cerrar la dimensión abierta. Con 24 h no se refresca.
+  const [tick, setTick] = useState(0);
+  const recalculoMin = resultado?.data?.recalculo_minutos ?? 1440;
+  useEffect(() => {
+    if (recalculoMin >= 1440) return;
+    const ms = Math.min(5 * 60000, Math.max(30000, (recalculoMin * 60000) / 2));
+    const t = window.setInterval(() => setTick((n) => n + 1), ms);
+    return () => window.clearInterval(t);
+  }, [recalculoMin]);
+
   useEffect(() => {
     let vigente = true; // descarta la respuesta de una persona que ya no está a la vista
     api<AnaliticaPersona>(`${rutaBase}/${personaId}/analitica`)
@@ -81,19 +95,19 @@ export const DetallePersona: React.FC<Props> = ({ rutaBase, personaId }) => {
       })
       .catch((err: unknown) => {
         // 401 y debe_cambiar_clave ya los resuelve AuthContext.
-        if (vigente) {
-          setResultado({
-            personaId,
-            intento,
-            data: null,
-            error: err instanceof Error ? err.message : 'No se pudo cargar el detalle',
-          });
-        }
+        if (!vigente) return;
+        const error = err instanceof Error ? err.message : 'No se pudo cargar el detalle';
+        // Si falla un refresco automático, se deja lo que ya se veía.
+        setResultado((prev) =>
+          prev && prev.personaId === personaId && prev.intento === intento && prev.data
+            ? prev
+            : { personaId, intento, data: null, error },
+        );
       });
     return () => {
       vigente = false;
     };
-  }, [rutaBase, personaId, intento]);
+  }, [rutaBase, personaId, intento, tick]);
 
   const listo = resultado != null && resultado.personaId === personaId && resultado.intento === intento;
   const data = listo ? resultado.data : null;
@@ -138,6 +152,9 @@ export const DetallePersona: React.FC<Props> = ({ rutaBase, personaId }) => {
 
   const ref = data.referencia;
   const { dias, semanas } = data.ventana;
+  // Semana vigente para las relaciones semanales: la última semana cerrada (lunes a domingo) antes del día calculado, porque
+  // el cierre semanal corre el lunes. Una relación semanal más vieja no se muestra con su mensaje antiguo.
+  const ultimaSemana = ref ? sumarDias(ref, -(((new Date(msDe(ref)).getUTCDay() + 6) % 7) + 7)) : null;
   const filasCorr = data.correlaciones?.metricas ?? [];
 
   const alternar = (d: DimensionDetalle) => setDimElegida((actual) => (actual === d.dimension ? null : d.dimension));
@@ -145,6 +162,8 @@ export const DetallePersona: React.FC<Props> = ({ rutaBase, personaId }) => {
   // ---- tarjetas por dimensión ----
   const tarjetaDia = (d: DimensionDetalle) => {
     const b = d.diaria;
+    // Sin bloque diario puede ser porque la dimensión no tiene métricas diarias (C) o porque no tuvo datos en la ventana.
+    const tieneDiarias = d.metricas.some((m) => m.frecuencia === 'diaria');
     return (
       <button
         key={d.dimension}
@@ -161,14 +180,29 @@ export const DetallePersona: React.FC<Props> = ({ rutaBase, personaId }) => {
               text={b.ultimo.criticality_status ? ESTADO_TEXTO[b.ultimo.criticality_status] : 'Sin dato'}
             />
           ) : (
-            <SemaphoreChip level="none" text="Sin métricas diarias" />
+            <SemaphoreChip level="none" text={tieneDiarias ? 'Sin datos' : 'Sin métricas diarias'} />
           )}
         </span>
         {b ? (
           <>
             <Puntaje punto={b.ultimo} />
-            <span className="an-dim-delta">{textoVariacion(b.variacion, 'frente al día anterior')}</span>
+            {b.ultimo.start_date === ref ? (
+              <span className="an-dim-delta">
+                {textoVariacion(
+                  b.variacion,
+                  // Si el punto anterior no es el día de antes (hubo días sin dato), se dice con qué fecha se compara.
+                  b.anterior && b.anterior.start_date !== sumarDias(b.ultimo.start_date, -1)
+                    ? `frente al ${fechaCorta(b.anterior.start_date)}`
+                    : 'frente al día anterior',
+                )}
+              </span>
+            ) : (
+              // Sin dato el día calculado: el puntaje es el último que hubo y se dice de cuándo es.
+              <span className="an-dim-delta an-dim-viejo">Sin datos desde el {fechaCorta(b.ultimo.start_date)}</span>
+            )}
           </>
+        ) : tieneDiarias ? (
+          <span className="an-dim-delta an-dim-viejo">Sin datos en el último año</span>
         ) : (
           <span className="an-dim-delta">Se miden por semana: están en la pestaña Semana.</span>
         )}
@@ -266,7 +300,12 @@ export const DetallePersona: React.FC<Props> = ({ rutaBase, personaId }) => {
           significativa frente al historial de la persona.
         </p>
         {data.correlaciones ? (
-          <Correlaciones filas={relacionadas} metricas={metricasPorNombre} vacio="Esta dimensión no entra en ninguna correlación diaria." />
+          <Correlaciones
+            filas={relacionadas}
+            metricas={metricasPorNombre}
+            vacio="Esta dimensión no entra en ninguna correlación diaria."
+            periodoVigente={ref}
+          />
         ) : (
           <p className="an-vacio">Las correlaciones no están disponibles en este momento.</p>
         )}
@@ -318,7 +357,12 @@ export const DetallePersona: React.FC<Props> = ({ rutaBase, personaId }) => {
 
         <h4 className="an-sec">Qué dicen los datos de la semana</h4>
         {data.correlaciones ? (
-          <Correlaciones filas={relacionadas} metricas={metricasPorNombre} vacio="Esta dimensión no entra en ninguna correlación semanal." />
+          <Correlaciones
+            filas={relacionadas}
+            metricas={metricasPorNombre}
+            vacio="Esta dimensión no entra en ninguna correlación semanal."
+            periodoVigente={ultimaSemana}
+          />
         ) : (
           <p className="an-vacio">Las correlaciones no están disponibles en este momento.</p>
         )}
@@ -330,7 +374,8 @@ export const DetallePersona: React.FC<Props> = ({ rutaBase, personaId }) => {
     <div className="an-panel">
       <div className="an-bar">
         <p className="an-nota">
-          Último día con datos: {fechaLarga(ref)}. Los puntajes van de 0 a 10 y los calcula la analítica; aquí solo se dibujan.
+          Último día calculado: {fechaLarga(ref)}. Las dimensiones sin datos ese día muestran su último valor y desde
+          cuándo no se actualiza. Los puntajes van de 0 a 10 y los calcula la analítica; aquí solo se dibujan.
         </p>
         <div className="an-tabs" role="tablist" aria-label="Periodo">
           <button role="tab" aria-selected={vista === 'dia'} className={vista === 'dia' ? 'on' : ''} onClick={() => setVista('dia')}>

@@ -10,9 +10,14 @@ from derivadas import desviacion_porcentual
 def etl_cierre_dia():
     """Ejecución diaria a medianoche: métricas diarias del día que terminó."""
     from datetime import date, timedelta
-    from etl import cierre_dia  # import tardío: etl importa pipeline, que importa este módulo
+    import recalculo
+    from etl import cierre_dia, recalcular_dia  # import tardío: etl importa pipeline, que importa este módulo
     dia = date.today() - timedelta(days=1)
-    print(f"[{datetime.now()}] Cierre de día {dia}: {len(cierre_dia(dia))} usuarios analizados.")
+    # Con recálculo periódico activo, el día que terminó ya tiene un resultado provisional (de la última vuelta antes de
+    # medianoche): se reemplaza para que incluya todo lo que llegó hasta las 00:00. Con 24 h se cierra como siempre.
+    periodico = recalculo.estado()["modo"] == "periodico"
+    guardados = recalcular_dia(dia) if periodico else cierre_dia(dia)
+    print(f"[{datetime.now()}] Cierre de día {dia}: {len(guardados)} usuarios analizados.")
     _refrescar_correlaciones()
 
 def etl_cierre_ciclo():
@@ -55,6 +60,10 @@ def iniciar_programador_etl():
     
     # Encender el reloj
     scheduler.start()
+
+    # Tarea 3 (opcional): recálculo del día en curso cada N minutos, configurable por el administrador (ver recalculo.py).
+    import recalculo  # import tardío: recalculo importa etl, que importa este módulo
+    recalculo.registrar(scheduler)
     print("⏱️ Programador APScheduler iniciado correctamente.")
     return scheduler
 

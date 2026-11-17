@@ -3,7 +3,7 @@ from datetime import date, datetime
 from functools import lru_cache
 
 from sqlalchemy import (JSON, BigInteger, Boolean, Column, Date, DateTime, Enum, Integer, MetaData, Numeric, String, Table,
-                        create_engine, insert, select)
+                        create_engine, delete, insert, select)
 from sqlalchemy.engine import URL
 
 from derivadas import TZ_LOCAL, Evento, horas_jornada
@@ -223,6 +223,20 @@ def existe_analisis(usuario_id: int, fecha_inicio: date, fecha_fin: date, frecue
     ).limit(1)
     with get_engine().connect() as conn:
         return conn.execute(stmt).first() is not None
+
+
+def borrar_analisis_dia(dia: date) -> int:
+    """Borra el resultado diario de `dia` (filas de dimensión 'day' de ese día y sus métricas) de todos los usuarios, para
+    volver a calcularlo con los eventos que hayan llegado. Lo usa el recálculo periódico (`recalculo.py`). No toca los
+    resultados semanales. Devuelve cuántas filas de dimensión borró."""
+    with get_engine().begin() as conn:
+        conn.execute(delete(metric_analyses).where(metric_analyses.c.start_date == dia, metric_analyses.c.end_date == dia))
+        r = conn.execute(delete(dimension_analyses).where(
+            dimension_analyses.c.frequency == FRECUENCIA_DB["daily"],
+            dimension_analyses.c.start_date == dia,
+            dimension_analyses.c.end_date == dia,
+        ))
+        return r.rowcount
 
 
 def cargar_eventos(desde: datetime, hasta: datetime, usuario_id: int | None = None) -> dict[int, list[Evento]]:
